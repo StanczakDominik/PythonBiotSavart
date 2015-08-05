@@ -26,7 +26,7 @@ for ix, vx in enumerate(x):
 
 grid_B=np.zeros_like(grid_positions)
 N_wires=6
-r_wires = 2.
+r_wires = 4.
 wire_current=1.e6/N_wires
 MU=4e-7*np.pi
 for i in range(N_wires):
@@ -55,6 +55,9 @@ for i in range(N_wires):
 		grid_B += differential*MU/(4*np.pi)
 	grid_B[np.isinf(grid_B)] = np.nan
 	mlab.plot3d(x_wire,y_wire,z_wire)
+
+grid_B[np.isinf(grid_B)] = 0
+print(grid_B)
 display_every_n_point=5
 x_display=grid_positions[::display_every_n_point,0]
 y_display=grid_positions[::display_every_n_point,1]
@@ -96,16 +99,15 @@ x_positions=[]
 y_positions=[]
 z_positions=[]
 energies=[]
-r = np.array([-1.,-1.,-1.])
-v0 = np.array([5.,5.,5.])
+r = np.array([-3.,-3.,-3.])
+v0 = np.array([10.,10.,10.])
 v = v0
 dummy, v = boris_step(r,v,-dt/2.)
 print(v)
 print("Moving particle")
-for i in range(1000):
+for i in range(1000000):
 	r,v = boris_step(r,v,dt)
-	print(r,v)
-	print(i)
+	print(i, r,v)
 	x_iter, y_iter, z_iter = r
 	if x_iter > xmax or x_iter < xmin or y_iter > ymax or y_iter < ymin or z_iter > zmax or z_iter < zmin:
 		break
