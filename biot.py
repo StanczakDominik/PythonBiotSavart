@@ -42,7 +42,7 @@ grid_B*=wire_current*1e7
 grid_B[np.isinf(grid_B)]=np.nan
 print(grid_B)
 
-coktory=2
+coktory=5
 x_display=grid_positions[::coktory,0]
 y_display=grid_positions[::coktory,1]
 z_display=grid_positions[::coktory,2]
