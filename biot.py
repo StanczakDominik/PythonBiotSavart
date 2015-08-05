@@ -37,7 +37,7 @@ for i in range(N_wires):
 	z_wire=np.linspace(zmin,zmax,N)
 	x_wire=np.ones_like(z_wire)*x_wire_pos
 	y_wire=np.ones_like(z_wire)*y_wire_pos
-	
+
 	wire_current = 1
 	wire = np.vstack((x_wire, y_wire, z_wire)).T
 	wire_gradient = np.gradient(wire)[0]
@@ -55,8 +55,7 @@ for i in range(N_wires):
 		grid_B += differential
 	grid_B[np.isinf(grid_B)] = np.nan
 	mlab.plot3d(x_wire,y_wire,z_wire)
-
-display_every_n_point=1
+display_every_n_point=5
 x_display=grid_positions[::display_every_n_point,0]
 y_display=grid_positions[::display_every_n_point,1]
 z_display=grid_positions[::display_every_n_point,2]
@@ -64,11 +63,12 @@ bx_display=grid_B[::display_every_n_point,0]
 by_display=grid_B[::display_every_n_point,1]
 bz_display=grid_B[::display_every_n_point,2]
 B_magnitude_squared=np.sqrt(np.sum(grid_B**2, axis=1))
+mlab.quiver3d(x_display, y_display, z_display, bx_display, by_display, bz_display)
 
 electron_charge = 1.60217657e-19
 electron_mass = 9.10938291e-31
 qmratio=electron_charge/electron_mass
-dt=0.01
+dt=0.001
 def calculate_field(r):
 	rprime = grid_positions-r
 	distances=np.sqrt(np.sum(rprime**2, axis=1))
@@ -82,8 +82,6 @@ def calculate_field(r):
 	interpolated_BZ = np.sum(local_B[:,2]*weights)/sum_weights
 	array = np.array([interpolated_BX,interpolated_BY,interpolated_BZ])
 	return array
-	
-	
 
 def boris_step(r, v, dt):
 	field = calculate_field(r)
@@ -99,13 +97,14 @@ y_positions=[]
 z_positions=[]
 energies=[]
 r = np.array([-1.,-1.,-1.])
-v0 = np.array([0.,0.,0.1])
+v0 = np.array([5.,5.,5.])
 v = v0
 dummy, v = boris_step(r,v,-dt/2.)
 print(v)
 print("Moving particle")
 for i in range(100000):
 	r,v = boris_step(r,v,dt)
+	print(r,v)
 	print(i)
 	x_iter, y_iter, z_iter = r
 	if x_iter > xmax or x_iter < xmin or y_iter > ymax or y_iter < ymin or z_iter > zmax or z_iter < zmin:
@@ -114,9 +113,7 @@ for i in range(100000):
 	y_positions.append(y_iter)
 	z_positions.append(z_iter)
 	energies.append(np.sum(v**2))
-mlab.plot3d(x_wire,y_wire,z_wire)
 mlab.plot3d(x_positions, y_positions, z_positions)
-mlab.quiver3d(x_display, y_display, z_display, bx_display, by_display, bz_display)
 #mlab.points3d(x_display,y_display,z_display, B_magnitude_squared[::display_every_n_point])
 mlab.show()
 plt.plot(energies)
