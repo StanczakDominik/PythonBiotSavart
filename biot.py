@@ -46,7 +46,7 @@ for index, wire_segment in enumerate(wire):
 		#print(np.sum(low_cutoff_indices))
 		differential[low_cutoff_indices, :] = 0
 	grid_B += differential
-grid_B*=wire_current*1e7
+grid_B*=wire_current*1e-7
 grid_B[np.isinf(grid_B)] = np.nan
 
 # plt.plot(mins, maxes, "ko")
@@ -65,7 +65,7 @@ B_magnitude_squared=np.sqrt(np.sum(grid_B**2, axis=1))
 electron_charge = 1.60217657e-19
 electron_mass = 9.10938291e-31
 qmratio=electron_charge/electron_mass
-dt=0.001
+dt=0.0000001
 def calculate_field(r):
 	field=np.zeros((1,3))
 	for index, wire_segment in enumerate(wire):
@@ -75,7 +75,7 @@ def calculate_field(r):
 		denominator = np.vstack((distances, distances, distances)).T
 		differential=np.cross(wire_segment_length, rprime)/denominator
 		field += differential
-		return field[0]
+	return field[0]
 def boris_step(r, v, dt):
 	field = calculate_field(r)
 	t = qmratio*field*dt/2.
@@ -89,9 +89,11 @@ x_positions=[]
 y_positions=[]
 z_positions=[]
 energies=[]
-r = np.array([2.,1.,0.])
-v = np.array([20.,0.,5.])
+r = np.array([-1.,-1.,-1.])
+v0 = np.array([20.,20.,5.])
+v = v0
 dummy, v = boris_step(r,v,-dt/2.)
+print(v-v0)
 print("Moving particle")
 for i in range(100000):
 	r,v = boris_step(r,v,dt)
