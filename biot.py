@@ -27,7 +27,8 @@ for ix, vx in enumerate(x):
 grid_B=np.zeros_like(grid_positions)
 N_wires=6
 r_wires = 2.
-wire_current=1e6/N_wires
+wire_current=1.e6/N_wires
+MU=4e-7*np.pi
 for i in range(N_wires):
 	print("wire " +str(i))
 	angle = 2*i*np.pi/N_wires
@@ -38,7 +39,6 @@ for i in range(N_wires):
 	x_wire=np.ones_like(z_wire)*x_wire_pos
 	y_wire=np.ones_like(z_wire)*y_wire_pos
 
-	wire_current = 1
 	wire = np.vstack((x_wire, y_wire, z_wire)).T
 	wire_gradient = np.gradient(wire)[0]
 	wire_length = np.sqrt(np.sum(wire_gradient**2, axis=1))
@@ -52,7 +52,7 @@ for i in range(N_wires):
 		indices_cut_off=np.sum(low_cutoff_indices)
 		if(indices_cut_off>0):
 			differential[low_cutoff_indices, :] = 0
-		grid_B += differential
+		grid_B += differential*MU/(4*np.pi)
 	grid_B[np.isinf(grid_B)] = np.nan
 	mlab.plot3d(x_wire,y_wire,z_wire)
 display_every_n_point=5
@@ -102,7 +102,7 @@ v = v0
 dummy, v = boris_step(r,v,-dt/2.)
 print(v)
 print("Moving particle")
-for i in range(100000):
+for i in range(1000):
 	r,v = boris_step(r,v,dt)
 	print(r,v)
 	print(i)
