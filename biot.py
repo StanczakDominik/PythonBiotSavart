@@ -27,13 +27,14 @@ for ix, vx in enumerate(x):
 grid_B=np.zeros_like(grid_positions)
 N_wires=6
 r_wires = 2.
+wire_current=1e6/N_wires
 for i in range(N_wires):
 	print("wire " +str(i))
 	angle = 2*i*np.pi/N_wires
 	x_wire_pos=r_wires*np.cos(angle)
 	y_wire_pos=r_wires*np.sin(angle)
 	N=100
-	z_wire=np.linspace(-3,3,N)
+	z_wire=np.linspace(zmin,zmax,N)
 	x_wire=np.ones_like(z_wire)*x_wire_pos
 	y_wire=np.ones_like(z_wire)*y_wire_pos
 	
@@ -54,34 +55,6 @@ for i in range(N_wires):
 		grid_B += differential
 	grid_B[np.isinf(grid_B)] = np.nan
 	mlab.plot3d(x_wire,y_wire,z_wire)
-
-
-display_every_n_point=5
-wire_current = 1e6
-wire = np.vstack((x_wire, y_wire, z_wire)).T
-wire_gradient = np.gradient(wire)[0]
-wire_length = np.sqrt(np.sum(wire_gradient**2, axis=1))
-
-
-grid_B=np.zeros_like(grid_positions)
-for index, wire_segment in enumerate(wire):
-	wire_segment_length = wire_gradient[index,:]*wire_length[index]
-	rprime=(grid_positions-wire_segment)
-	distances = np.sum(rprime**2, axis=1)**(3./2.)
-	denominator = np.vstack((distances, distances, distances)).T
-	differential=np.cross(wire_segment_length, rprime)/denominator
-
-	low_cutoff_indices=distances<0.0001
-	indices_cut_off=np.sum(low_cutoff_indices)
-	if(indices_cut_off>0):
-		#print(np.sum(low_cutoff_indices))
-		differential[low_cutoff_indices, :] = 0
-	grid_B += differential
-grid_B*=wire_current*1e-7
-grid_B[np.isinf(grid_B)] = np.nan
-
-# plt.plot(mins, maxes, "ko")
-# plt.show()
 
 display_every_n_point=1
 x_display=grid_positions[::display_every_n_point,0]
