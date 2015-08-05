@@ -4,7 +4,15 @@ import matplotlib.pyplot as plt
 from numpy import pi, sin, cos, mgrid
 from mayavi import mlab
 NGRID=25
-x=y=z=np.linspace(-5,5,NGRID)
+xmax=5
+xmin=-5
+ymax=5
+ymin=-5
+zmax=5
+zmin=-5
+x=np.linspace(xmin,xmax,NGRID)
+y=np.linspace(ymin,ymax,NGRID)
+z=np.linspace(zmin,zmax,NGRID)
 
 grid_positions=np.zeros((NGRID**3,3))
 for ix, vx in enumerate(x):
@@ -67,15 +75,21 @@ electron_mass = 9.10938291e-31
 qmratio=electron_charge/electron_mass
 dt=0.01
 def calculate_field(r):
-	field=np.zeros((1,3))
-	for index, wire_segment in enumerate(wire):
-		wire_segment_length = wire_gradient[index,:]*wire_length[index]
-		rprime=(r-wire_segment)
-		distances = np.sum(rprime**2)**(3/2)
-		denominator = np.vstack((distances, distances, distances)).T
-		differential=np.cross(wire_segment_length, rprime)/denominator
-		field += differential
-	return field[0]
+	rprime = grid_positions-r
+	distances=np.sqrt(np.sum(rprime**2, axis=1))
+	sorted_indices = np.argsort(distances)[:10]
+	rprime = rprime[sorted_indices, :]
+	local_B = grid_B[sorted_indices,:]
+	weights = np.sum(1/rprime**2, axis=1)
+	sum_weights = np.sum(weights)
+	interpolated_BX = np.sum(local_B[:,0]*weights)/sum_weights
+	interpolated_BY = np.sum(local_B[:,1]*weights)/sum_weights
+	interpolated_BZ = np.sum(local_B[:,2]*weights)/sum_weights
+	array = np.array([interpolated_BX,interpolated_BY,interpolated_BZ])
+	return array
+	
+	
+
 def boris_step(r, v, dt):
 	field = calculate_field(r)
 	t = qmratio*field*dt/2.
@@ -90,15 +104,17 @@ y_positions=[]
 z_positions=[]
 energies=[]
 r = np.array([-1.,-1.,-1.])
-v0 = np.array([0.,0.,1.])
+v0 = np.array([0.,0.,0.1])
 v = v0
 dummy, v = boris_step(r,v,-dt/2.)
 print(v)
 print("Moving particle")
-for i in range(1000):
+for i in range(100000):
 	r,v = boris_step(r,v,dt)
 	print(i)
 	x_iter, y_iter, z_iter = r
+	if x_iter > xmax or x_iter < xmin or y_iter > ymax or y_iter < ymin or z_iter > zmax or z_iter < zmin:
+		break
 	#print(x_iter, y_iter, z_iter)
 	x_positions.append(x_iter)
 	y_positions.append(y_iter)
@@ -109,6 +125,7 @@ mlab.plot3d(x_positions, y_positions, z_positions)
 mlab.quiver3d(x_display, y_display, z_display, bx_display, by_display, bz_display)
 #mlab.points3d(x_display,y_display,z_display, B_magnitude_squared[::display_every_n_point])
 mlab.show()
-print(energies[-1]-energies[0]/((energies[0]+energies[-1])/2))
 plt.plot(energies)
+plt.title("Energia. Wzgledna wariacja = " +str((max(energies)-min(energies))/((max(energies)+min(energies))/2)))
+plt.ylim(min(energies), max(energies))
 plt.show()
