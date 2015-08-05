@@ -26,7 +26,7 @@ z_wire = np.zeros_like(x_wire)
 # x_wire=y_wire=np.zeros_like(z_wire)
 
 
-wire_current = 1
+wire_current = 1e6
 wire = np.vstack((x_wire, y_wire, z_wire)).T
 wire_gradient = np.gradient(wire)[0]
 wire_length = np.sqrt(np.sum(wire_gradient**2, axis=1))
@@ -65,7 +65,7 @@ B_magnitude_squared=np.sqrt(np.sum(grid_B**2, axis=1))
 electron_charge = 1.60217657e-19
 electron_mass = 9.10938291e-31
 qmratio=electron_charge/electron_mass
-dt=0.0000001
+dt=0.01
 def calculate_field(r):
 	field=np.zeros((1,3))
 	for index, wire_segment in enumerate(wire):
@@ -90,13 +90,14 @@ y_positions=[]
 z_positions=[]
 energies=[]
 r = np.array([-1.,-1.,-1.])
-v0 = np.array([20.,20.,5.])
+v0 = np.array([0.,0.,1.])
 v = v0
 dummy, v = boris_step(r,v,-dt/2.)
-print(v-v0)
+print(v)
 print("Moving particle")
-for i in range(100000):
+for i in range(1000):
 	r,v = boris_step(r,v,dt)
+	print(i)
 	x_iter, y_iter, z_iter = r
 	#print(x_iter, y_iter, z_iter)
 	x_positions.append(x_iter)
@@ -108,5 +109,6 @@ mlab.plot3d(x_positions, y_positions, z_positions)
 mlab.quiver3d(x_display, y_display, z_display, bx_display, by_display, bz_display)
 #mlab.points3d(x_display,y_display,z_display, B_magnitude_squared[::display_every_n_point])
 mlab.show()
+print(energies[-1]-energies[0]/((energies[0]+energies[-1])/2))
 plt.plot(energies)
 plt.show()
