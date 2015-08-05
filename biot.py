@@ -21,6 +21,7 @@ N_wires=6
 r_wires = 2.
 
 for i in range(N_wires):
+	print("wire " +str(i))
     angle = 2*i*np.pi/N_wires
     x_wire_pos=r_wires*np.cos(angle)
     y_wire_pos=r_wires*np.sin(angle)
