@@ -1,9 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import mpl_toolkits.mplot3d.axes3d
-
+from numpy import pi, sin, cos, mgrid
+from mayavi import mlab
 NGRID=25
-x=y=z=np.linspace(-1,1,NGRID)
+x=y=z=np.linspace(-5,5,NGRID)
 
 grid_positions=np.zeros((NGRID**3,3))
 for ix, vx in enumerate(x):
@@ -15,12 +15,13 @@ for ix, vx in enumerate(x):
             grid_positions[row, 2] = vz
 
 theta=np.linspace(0,2*np.pi, 1000)
-x_wire = 0.5*np.cos(theta)
-y_wire = 0.5*np.sin(theta)
-z_wire = np.zeros_like(x_wire)
+x_wire = 2.5*np.cos(theta*4)
+y_wire = 2.5*np.sin(theta*4)
+# z_wire = np.zeros_like(x_wire)
+z_wire = np.linspace(-4.9,4.9,1000)
 
-# N=1000
-# z_wire=np.linspace(-1,1,N)
+# N=100
+# z_wire=np.linspace(-5,5,N)
 # x_wire=y_wire=np.zeros_like(z_wire)
 
 
@@ -31,35 +32,26 @@ wire_length = np.sqrt(np.sum(wire_gradient**2, axis=1))
 
 grid_B=np.zeros_like(grid_positions)
 for index, wire_segment in enumerate(wire):
-    wire_segment_length = wire_gradient[index,:]
+    wire_segment_length = wire_gradient[index,:]*wire_length[index]
     rprime=(grid_positions-wire_segment)
-    differential=np.cross(wire_segment_length, rprime)/np.abs(rprime)**3
+    distances = np.sum(rprime**2, axis=1)**(3/2)
+    denominator = np.vstack((distances, distances, distances)).T
+    differential=np.cross(wire_segment_length, rprime)/denominator
     grid_B += differential
 grid_B*=wire_current*1e7
+grid_B[np.isinf(grid_B)]=np.nan
 print(grid_B)
 
-# for i in range(NGRID):
-#     x_display = grid_positions[i::NGRID,0]
-#     y_display = grid_positions[i::NGRID,1]
-#     bx_display = grid_B[i::NGRID,0]
-#     by_display = grid_B[i::NGRID,1]
-#     plt.quiver(x_display,y_display,bx_display, by_display)
-#     plt.plot()
-#     plt.show()
-
-coktory=5
+coktory=2
 x_display=grid_positions[::coktory,0]
 y_display=grid_positions[::coktory,1]
 z_display=grid_positions[::coktory,2]
 bx_display=grid_B[::coktory,0]
 by_display=grid_B[::coktory,1]
 bz_display=grid_B[::coktory,2]
-fig = plt.figure()
-ax=fig.gca(projection='3d')
-ax.plot(x_wire,y_wire,z_wire, "r-")
-ax.quiver(x_display, y_display, z_display, bx_display, by_display, bz_display,
-    length=0.1)
-ax.set_xlim(-1,1)
-ax.set_ylim(-1,1)
-ax.set_zlim(-1,1)
-plt.show()
+
+mlab.plot3d(x_wire,y_wire,z_wire)
+B_magnitude_squared=np.sqrt(np.sum(grid_B**2, axis=1))
+mlab.quiver3d(x_display, y_display, z_display, bx_display, by_display, bz_display)
+#mlab.points3d(x_display,y_display,z_display, B_magnitude_squared[::coktory])
+mlab.show()
