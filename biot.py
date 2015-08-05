@@ -39,8 +39,7 @@ for index, wire_segment in enumerate(wire):
     differential=np.cross(wire_segment_length, rprime)/denominator
     grid_B += differential
 grid_B*=wire_current*1e7
-grid_B[np.isinf(grid_B)]=np.nan
-print(grid_B)
+grid_B[np.isinf(grid_B)] = np.nan
 
 coktory=5
 x_display=grid_positions[::coktory,0]
@@ -49,7 +48,6 @@ z_display=grid_positions[::coktory,2]
 bx_display=grid_B[::coktory,0]
 by_display=grid_B[::coktory,1]
 bz_display=grid_B[::coktory,2]
-
 mlab.plot3d(x_wire,y_wire,z_wire)
 B_magnitude_squared=np.sqrt(np.sum(grid_B**2, axis=1))
 mlab.quiver3d(x_display, y_display, z_display, bx_display, by_display, bz_display)
