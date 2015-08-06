@@ -95,30 +95,42 @@ def boris_step(r, v, dt):
 	r+=v*dt
 	return r,v
 
-x_positions=[]
-y_positions=[]
-z_positions=[]
-energies=[]
-r = np.array([-3.,-3.,-3.])
-v0 = np.array([10.,10.,10.])
-v = v0
-dummy, v = boris_step(r,v,-dt/2.)
-print(v)
-print("Moving particle")
-for i in range(1000000):
-	r,v = boris_step(r,v,dt)
-	print(i, r,v)
-	x_iter, y_iter, z_iter = r
-	if x_iter > xmax or x_iter < xmin or y_iter > ymax or y_iter < ymin or z_iter > zmax or z_iter < zmin:
-		break
-	x_positions.append(x_iter)
-	y_positions.append(y_iter)
-	z_positions.append(z_iter)
-	energies.append(np.sum(v**2))
-mlab.plot3d(x_positions, y_positions, z_positions)
+N_iterations=10000
+N_particles=100
+for particle_i in range(N_particles):
+	x_positions=np.zeros(N_iterations)
+	y_positions=np.zeros(N_iterations)
+	z_positions=np.zeros(N_iterations)
+	energies=np.zeros(N_iterations)
+	r=np.random.rand(3)*10-5
+	v0=np.random.rand(3)*20-10
+	v = v0
+	dummy, v = boris_step(r,v,-dt/2.)
+	print(v)
+	print("Moving particle")
+	for i in range(N_iterations):
+		r,v = boris_step(r,v,dt)
+		print(i, r,v)
+		x_iter, y_iter, z_iter = r
+		if x_iter > xmax or x_iter < xmin or y_iter > ymax or y_iter < ymin or z_iter > zmax or z_iter < zmin:
+			break
+		print(r)
+		x_positions[i]=x_iter
+		y_positions[i]=y_iter
+		z_positions[i]=z_iter
+		energies[i]=np.sum(v**2)
+
+	np.savetxt(str(particle_i)+"x_positions.dat", x_positions)
+	np.savetxt(str(particle_i)+"y_positions.dat", y_positions)
+	np.savetxt(str(particle_i)+"z_positions.dat", z_positions)
+	np.savetxt(str(particle_i)+"energies.dat", energies)
+
+	plt.plot(energies)
+	plt.title("Energia. Wzgledna wariacja = " +str((max(energies)-min(energies))/((max(energies)+min(energies))/2)))
+	plt.ylim(min(energies), max(energies))
+	plt.savefig(str(particle_i)+"energies.png")
+	plt.clf()
+
+	mlab.plot3d(x_positions, y_positions, z_positions)
 #mlab.points3d(x_display,y_display,z_display, B_magnitude_squared[::display_every_n_point])
 mlab.show()
-plt.plot(energies)
-plt.title("Energia. Wzgledna wariacja = " +str((max(energies)-min(energies))/((max(energies)+min(energies))/2)))
-plt.ylim(min(energies), max(energies))
-plt.show()
