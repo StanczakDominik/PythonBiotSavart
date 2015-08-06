@@ -3,17 +3,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 from numpy import pi, sin, cos, mgrid
 from mayavi import mlab
-NGRID=25
+from biot_params import *
 
-xmax=5
-xmin=-5
-ymax=5
-ymin=-5
-zmax=5
-zmin=-5
-x=np.linspace(xmin,xmax,NGRID)
-y=np.linspace(ymin,ymax,NGRID)
-z=np.linspace(zmin,zmax,NGRID)
+
+x,dx=np.linspace(xmin,xmax,NGRID,retstep=True)
+y,dy=np.linspace(ymin,ymax,NGRID,retstep=True)
+z,dz=np.linspace(zmin,zmax,NGRID,retstep=True)
 
 grid_positions=np.zeros((NGRID**3,3))
 for ix, vx in enumerate(x):
@@ -25,16 +20,11 @@ for ix, vx in enumerate(x):
 			grid_positions[row, 2] = vz
 
 grid_B=np.zeros_like(grid_positions)
-N_wires=6
-r_wires = 4.
-wire_current=1.e6/N_wires
-MU=4e-7*np.pi
 for i in range(N_wires):
 	print("wire " +str(i))
 	angle = 2*i*np.pi/N_wires
 	x_wire_pos=r_wires*np.cos(angle)
 	y_wire_pos=r_wires*np.sin(angle)
-	N=100
 	z_wire=np.linspace(zmin,zmax,N)
 	x_wire=np.ones_like(z_wire)*x_wire_pos
 	y_wire=np.ones_like(z_wire)*y_wire_pos
@@ -42,19 +32,22 @@ for i in range(N_wires):
 	wire = np.vstack((x_wire, y_wire, z_wire)).T
 	wire_gradient = np.gradient(wire)[0]
 	wire_length = np.sqrt(np.sum(wire_gradient**2, axis=1))
+	wire_gradient[:,0]*=dx
+	wire_gradient[:,1]*=dy
+	wire_gradient[:,2]*=dz
 	for index, wire_segment in enumerate(wire):
 		wire_segment_length = wire_gradient[index,:]*wire_length[index]
 		rprime=(grid_positions-wire_segment)
 		distances = np.sum(rprime**2, axis=1)**(3./2.)
 		denominator = np.vstack((distances, distances, distances)).T
 		differential=np.cross(wire_segment_length, rprime)/denominator*wire_current*1e7
-		low_cutoff_indices=distances<0.01
+		low_cutoff_indices=distances<low_cutoff_distance
 		indices_cut_off=np.sum(low_cutoff_indices)
 		if(indices_cut_off>0):
 			differential[low_cutoff_indices, :] = 0
 		grid_B += differential*MU/(4*np.pi)
 	grid_B[np.isinf(grid_B)] = np.nan
-	#mlab.plot3d(x_wire,y_wire,z_wire)
+	# mlab.plot3d(x_wire,y_wire,z_wire, tube_radius=None)
 
 grid_B[np.isinf(grid_B)] = 0
 
@@ -62,7 +55,6 @@ np.savetxt("grid_positions.dat", grid_positions)
 np.savetxt("grid_B.dat", grid_B)
 
 print(grid_B)
-display_every_n_point=5
 x_display=grid_positions[::display_every_n_point,0]
 y_display=grid_positions[::display_every_n_point,1]
 z_display=grid_positions[::display_every_n_point,2]
@@ -70,12 +62,12 @@ bx_display=grid_B[::display_every_n_point,0]
 by_display=grid_B[::display_every_n_point,1]
 bz_display=grid_B[::display_every_n_point,2]
 B_magnitude_squared=np.sqrt(np.sum(grid_B**2, axis=1))
-#mlab.quiver3d(x_display, y_display, z_display, bx_display, by_display, bz_display)
+# mlab.quiver3d(x_display, y_display, z_display, bx_display, by_display, bz_display)
 
-electron_charge = 1.60217657e-19
-electron_mass = 9.10938291e-31
-qmratio=electron_charge/electron_mass
-dt=0.001
+print(np.max(B_magnitude_squared))
+dt_cyclotron = 0.1*2*np.pi/np.max(B_magnitude_squared)/qmratio
+print("dt cyclotron = " + str(dt_cyclotron))
+
 def calculate_field(r):
 	rprime = grid_positions-r
 	distances=np.sqrt(np.sum(rprime**2, axis=1))
@@ -99,15 +91,15 @@ def boris_step(r, v, dt):
 	r+=v*dt
 	return r,v
 
-N_iterations=10000
-N_particles=100
 for particle_i in range(N_particles):
 	x_positions=np.zeros(N_iterations)
 	y_positions=np.zeros(N_iterations)
 	z_positions=np.zeros(N_iterations)
 	energies=np.zeros(N_iterations)
-	r=np.random.rand(3)*10-5
-	v0=np.random.rand(3)*20-10
+	r=np.random.rand(3)
+	r[:2]=r[:2]*(xmax-xmin)+xmin
+	r[2] = r[2]*(zmax-zmin)+zmin
+	v0=(np.random.rand(3)*(xmax-xmin)+xmin)*velocity_scaling
 	v = v0
 	dummy, v = boris_step(r,v,-dt/2.)
 	print(v)
@@ -117,11 +109,16 @@ for particle_i in range(N_particles):
 		#print(i, r,v)
 		x_iter, y_iter, z_iter = r
 		if x_iter > xmax or x_iter < xmin or y_iter > ymax or y_iter < ymin or z_iter > zmax or z_iter < zmin:
+			x_positions[i:]=x_iter
+			y_positions[i:]=y_iter
+			z_positions[i:]=z_iter
+			energies[i:]=np.sum(v**2)
 			break
-		x_positions[i]=x_iter
-		y_positions[i]=y_iter
-		z_positions[i]=z_iter
-		energies[i]=np.sum(v**2)
+		else:
+			x_positions[i]=x_iter
+			y_positions[i]=y_iter
+			z_positions[i]=z_iter
+			energies[i]=np.sum(v**2)
 
 	np.savetxt(str(particle_i)+"x_positions.dat", x_positions)
 	np.savetxt(str(particle_i)+"y_positions.dat", y_positions)
@@ -134,6 +131,7 @@ for particle_i in range(N_particles):
 	plt.savefig(str(particle_i)+"energies.png")
 	plt.clf()
 
-	#mlab.plot3d(x_positions, y_positions, z_positions)
+	# mlab.plot3d(x_positions, y_positions, z_positions, tube_radius=None)
 #####mlab.points3d(x_display,y_display,z_display, B_magnitude_squared[::display_every_n_point])
-#mlab.show()
+# mlab.show()
+print("Finished.")
