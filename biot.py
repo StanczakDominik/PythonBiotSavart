@@ -65,9 +65,10 @@ B_magnitude_squared=np.sqrt(np.sum(grid_B**2, axis=1))
 # mlab.quiver3d(x_display, y_display, z_display, bx_display, by_display, bz_display)
 
 print(np.max(B_magnitude_squared))
-dt_cyclotron = 0.1*2*np.pi/np.max(B_magnitude_squared)/qmratio
+dt_cyclotron = np.abs(0.1*2*np.pi/np.max(B_magnitude_squared)/qmratio)
+print("dt = " + str(dt))
 print("dt cyclotron = " + str(dt_cyclotron))
-
+dt = dt_cyclotron
 def calculate_field(r):
 	rprime = grid_positions-r
 	distances=np.sqrt(np.sum(rprime**2, axis=1))
@@ -109,10 +110,10 @@ for particle_i in range(N_particles):
 		#print(i, r,v)
 		x_iter, y_iter, z_iter = r
 		if x_iter > xmax or x_iter < xmin or y_iter > ymax or y_iter < ymin or z_iter > zmax or z_iter < zmin:
-			x_positions[i:]=x_iter
-			y_positions[i:]=y_iter
-			z_positions[i:]=z_iter
-			energies[i:]=np.sum(v**2)
+			x_positions[i-1:]=x_iter
+			y_positions[i-1:]=y_iter
+			z_positions[i-1:]=z_iter
+			energies[i-1:]=np.sum(v**2)
 			break
 		else:
 			x_positions[i]=x_iter

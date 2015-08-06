@@ -24,7 +24,7 @@ z_display=grid_positions[::display_every_n_point,2]
 bx_display=grid_B[::display_every_n_point,0]
 by_display=grid_B[::display_every_n_point,1]
 bz_display=grid_B[::display_every_n_point,2]
-mlab.quiver3d(x_display, y_display, z_display, bx_display, by_display, bz_display)
+#mlab.quiver3d(x_display, y_display, z_display, bx_display, by_display, bz_display)
 
 for particle_i in range(N_particles):
 	try:

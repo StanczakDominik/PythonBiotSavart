@@ -17,9 +17,16 @@ low_cutoff_distance=0.0000001
 
 N_iterations=10000
 N_particles=100
-electron_charge = 1.60217657e-19
+
+electron_charge = -1.60217657e-19
 electron_mass = 9.10938291e-31
-qmratio=electron_charge/electron_mass
-velocity_scaling=1e5
+
+deuteron_mass = 3.343583719e-27
+
+#3 keV
+#thermal velocity?
+
+qmratio=electron_charge/deuteron_mass
+velocity_scaling=1e6
 dt=0.01/velocity_scaling
 MU=4e-7*np.pi
