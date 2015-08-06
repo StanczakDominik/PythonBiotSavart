@@ -54,9 +54,13 @@ for i in range(N_wires):
 			differential[low_cutoff_indices, :] = 0
 		grid_B += differential*MU/(4*np.pi)
 	grid_B[np.isinf(grid_B)] = np.nan
-	mlab.plot3d(x_wire,y_wire,z_wire)
+	#mlab.plot3d(x_wire,y_wire,z_wire)
 
 grid_B[np.isinf(grid_B)] = 0
+
+np.savetxt("grid_positions.dat", grid_positions)
+np.savetxt("grid_B.dat", grid_B)
+
 print(grid_B)
 display_every_n_point=5
 x_display=grid_positions[::display_every_n_point,0]
@@ -66,7 +70,7 @@ bx_display=grid_B[::display_every_n_point,0]
 by_display=grid_B[::display_every_n_point,1]
 bz_display=grid_B[::display_every_n_point,2]
 B_magnitude_squared=np.sqrt(np.sum(grid_B**2, axis=1))
-mlab.quiver3d(x_display, y_display, z_display, bx_display, by_display, bz_display)
+#mlab.quiver3d(x_display, y_display, z_display, bx_display, by_display, bz_display)
 
 electron_charge = 1.60217657e-19
 electron_mass = 9.10938291e-31
@@ -107,14 +111,13 @@ for particle_i in range(N_particles):
 	v = v0
 	dummy, v = boris_step(r,v,-dt/2.)
 	print(v)
-	print("Moving particle")
+	print("Moving particle " + str(particle_i))
 	for i in range(N_iterations):
 		r,v = boris_step(r,v,dt)
-		print(i, r,v)
+		#print(i, r,v)
 		x_iter, y_iter, z_iter = r
 		if x_iter > xmax or x_iter < xmin or y_iter > ymax or y_iter < ymin or z_iter > zmax or z_iter < zmin:
 			break
-		print(r)
 		x_positions[i]=x_iter
 		y_positions[i]=y_iter
 		z_positions[i]=z_iter
@@ -131,6 +134,6 @@ for particle_i in range(N_particles):
 	plt.savefig(str(particle_i)+"energies.png")
 	plt.clf()
 
-	mlab.plot3d(x_positions, y_positions, z_positions)
-#mlab.points3d(x_display,y_display,z_display, B_magnitude_squared[::display_every_n_point])
-mlab.show()
+	#mlab.plot3d(x_positions, y_positions, z_positions)
+#####mlab.points3d(x_display,y_display,z_display, B_magnitude_squared[::display_every_n_point])
+#mlab.show()
