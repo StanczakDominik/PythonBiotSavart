@@ -4,57 +4,60 @@ import matplotlib.pyplot as plt
 from numpy import pi, sin, cos, mgrid
 from mayavi import mlab
 from biot_params import *
+import os.path
 
+if(os.path.isfile("grid_positions.dat")):
+	grid_positions=np.loadtxt("grid_positions.dat")
+else:
+	x,dx=np.linspace(xmin,xmax,NGRID,retstep=True)
+	y,dy=np.linspace(ymin,ymax,NGRID,retstep=True)
+	z,dz=np.linspace(zmin,zmax,NGRID,retstep=True)
 
-x,dx=np.linspace(xmin,xmax,NGRID,retstep=True)
-y,dy=np.linspace(ymin,ymax,NGRID,retstep=True)
-z,dz=np.linspace(zmin,zmax,NGRID,retstep=True)
+	grid_positions=np.zeros((NGRID**3,3))
+	for ix, vx in enumerate(x):
+		for iy, vy in enumerate(y):
+			for iz, vz in enumerate(z):
+				row = NGRID**2*ix+NGRID*iy+iz
+				grid_positions[row, 0] = vx
+				grid_positions[row, 1] = vy
+				grid_positions[row, 2] = vz
+	np.savetxt("grid_positions.dat", grid_positions)
+if(os.path.isfile("grid_B.dat")):
+	grid_B=np.loadtxt("grid_B.dat")
+else:
+	grid_B=np.zeros_like(grid_positions)
+	for i in range(N_wires):
+		print("wire " +str(i))
+		angle = 2*i*np.pi/N_wires
+		x_wire_pos=r_wires*np.cos(angle)
+		y_wire_pos=r_wires*np.sin(angle)
+		z_wire=np.linspace(zmin,zmax,N)
+		x_wire=np.ones_like(z_wire)*x_wire_pos
+		y_wire=np.ones_like(z_wire)*y_wire_pos
 
-grid_positions=np.zeros((NGRID**3,3))
-for ix, vx in enumerate(x):
-	for iy, vy in enumerate(y):
-		for iz, vz in enumerate(z):
-			row = NGRID**2*ix+NGRID*iy+iz
-			grid_positions[row, 0] = vx
-			grid_positions[row, 1] = vy
-			grid_positions[row, 2] = vz
+		wire = np.vstack((x_wire, y_wire, z_wire)).T
+		wire_gradient = np.gradient(wire)[0]
+		wire_length = np.sqrt(np.sum(wire_gradient**2, axis=1))
+		wire_gradient[:,0]*=dx
+		wire_gradient[:,1]*=dy
+		wire_gradient[:,2]*=dz
+		for index, wire_segment in enumerate(wire):
+			wire_segment_length = wire_gradient[index,:]*wire_length[index]
+			rprime=(grid_positions-wire_segment)
+			distances = np.sum(rprime**2, axis=1)**(3./2.)
+			denominator = np.vstack((distances, distances, distances)).T
+			differential=np.cross(wire_segment_length, rprime)/denominator*wire_current*1e7
+			low_cutoff_indices=distances<low_cutoff_distance
+			indices_cut_off=np.sum(low_cutoff_indices)
+			if(indices_cut_off>0):
+				differential[low_cutoff_indices, :] = 0
+			grid_B += differential*MU/(4*np.pi)
+		grid_B[np.isinf(grid_B)] = np.nan
+		# mlab.plot3d(x_wire,y_wire,z_wire, tube_radius=None)
+	np.savetxt("grid_B.dat", grid_B)
 
-grid_B=np.zeros_like(grid_positions)
-for i in range(N_wires):
-	print("wire " +str(i))
-	angle = 2*i*np.pi/N_wires
-	x_wire_pos=r_wires*np.cos(angle)
-	y_wire_pos=r_wires*np.sin(angle)
-	z_wire=np.linspace(zmin,zmax,N)
-	x_wire=np.ones_like(z_wire)*x_wire_pos
-	y_wire=np.ones_like(z_wire)*y_wire_pos
+# grid_B[np.isinf(grid_B)] = 0
 
-	wire = np.vstack((x_wire, y_wire, z_wire)).T
-	wire_gradient = np.gradient(wire)[0]
-	wire_length = np.sqrt(np.sum(wire_gradient**2, axis=1))
-	wire_gradient[:,0]*=dx
-	wire_gradient[:,1]*=dy
-	wire_gradient[:,2]*=dz
-	for index, wire_segment in enumerate(wire):
-		wire_segment_length = wire_gradient[index,:]*wire_length[index]
-		rprime=(grid_positions-wire_segment)
-		distances = np.sum(rprime**2, axis=1)**(3./2.)
-		denominator = np.vstack((distances, distances, distances)).T
-		differential=np.cross(wire_segment_length, rprime)/denominator*wire_current*1e7
-		low_cutoff_indices=distances<low_cutoff_distance
-		indices_cut_off=np.sum(low_cutoff_indices)
-		if(indices_cut_off>0):
-			differential[low_cutoff_indices, :] = 0
-		grid_B += differential*MU/(4*np.pi)
-	grid_B[np.isinf(grid_B)] = np.nan
-	# mlab.plot3d(x_wire,y_wire,z_wire, tube_radius=None)
-
-grid_B[np.isinf(grid_B)] = 0
-
-np.savetxt("grid_positions.dat", grid_positions)
-np.savetxt("grid_B.dat", grid_B)
-
-print(grid_B)
 x_display=grid_positions[::display_every_n_point,0]
 y_display=grid_positions[::display_every_n_point,1]
 z_display=grid_positions[::display_every_n_point,2]
@@ -126,11 +129,11 @@ for particle_i in range(N_particles):
 	np.savetxt(str(particle_i)+"z_positions.dat", z_positions)
 	np.savetxt(str(particle_i)+"energies.dat", energies)
 
-	plt.plot(energies)
-	plt.title("Energia. Wzgledna wariacja = " +str((max(energies)-min(energies))/((max(energies)+min(energies))/2)))
-	plt.ylim(min(energies), max(energies))
-	plt.savefig(str(particle_i)+"energies.png")
-	plt.clf()
+	# plt.plot(energies)
+	# plt.title("Energia. Wzgledna wariacja = " +str((max(energies)-min(energies))/((max(energies)+min(energies))/2)))
+	# plt.ylim(min(energies), max(energies))
+	# plt.savefig(str(particle_i)+"energies.png")
+	# plt.clf()
 
 	# mlab.plot3d(x_positions, y_positions, z_positions, tube_radius=None)
 #####mlab.points3d(x_display,y_display,z_display, B_magnitude_squared[::display_every_n_point])
