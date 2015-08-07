@@ -6,8 +6,8 @@ from mayavi import mlab
 from biot_params import *
 import os.path
 
-if(os.path.isfile("grid_positions.dat")):
-	grid_positions=np.loadtxt("grid_positions.dat")
+if(os.path.isfile("RK4grid_positions.dat")):
+	grid_positions=np.loadtxt("RK4grid_positions.dat")
 else:
 	x,dx=np.linspace(xmin,xmax,NGRID,retstep=True)
 	y,dy=np.linspace(ymin,ymax,NGRID,retstep=True)
@@ -21,9 +21,9 @@ else:
 				grid_positions[row, 0] = vx
 				grid_positions[row, 1] = vy
 				grid_positions[row, 2] = vz
-	np.savetxt("grid_positions.dat", grid_positions)
-if(os.path.isfile("grid_B.dat")):
-	grid_B=np.loadtxt("grid_B.dat")
+	np.savetxt("RK4grid_positions.dat", grid_positions)
+if(os.path.isfile("RK4grid_B.dat")):
+	grid_B=np.loadtxt("RK4grid_B.dat")
 else:
 	grid_B=np.zeros_like(grid_positions)
 	for i in range(N_wires):
@@ -54,7 +54,7 @@ else:
 			grid_B += differential*MU/(4*np.pi)
 		grid_B[np.isinf(grid_B)] = np.nan
 		mlab.plot3d(x_wire,y_wire,z_wire, tube_radius=None)
-	np.savetxt("grid_B.dat", grid_B)
+	np.savetxt("RK4grid_B.dat", grid_B)
 
 # grid_B[np.isinf(grid_B)] = 0
 
@@ -96,25 +96,25 @@ def boris_step(r, v, dt):
 	return r,v
 
 def RK4_step(r,v,dt):
-	field1 = calculatefield(r)
+	field1 = calculate_field(r)
 	k1v = qmratio*np.cross(v,field1)
 	k1r = v
 
 	r2 = r + k1r*dt/2.
 	v2 = v + k1v*dt/2.
-	field2 = calculatefield(r2)
+	field2 = calculate_field(r2)
 	k2v = qmratio*np.cross(v2,field2)
 	k2r = v2
 
 	r3 = r + k2r*dt/2.
-	v3 = v + k3r*dt/2.
-	field3 = calculatefield(r3)
+	v3 = v + k2v*dt/2.
+	field3 = calculate_field(r3)
 	k3v = qmratio*np.cross(v3, field3)
 	k3r = v3
 
 	r4 = r + k3r*dt
-	v4 = v + k4r*dt
-	field4 = calculatefield(r4)
+	v4 = v + k3v*dt
+	field4 = calculate_field(r4)
 	k4v = qmratio*np.cross(v4, field4)
 	k4r = v4
 
@@ -134,7 +134,7 @@ for particle_i in range(N_particles):
 	v=(np.random.rand(3)*(xmax-xmin)+xmin)*velocity_scaling
 	print("Moving particle " + str(particle_i))
 	for i in range(N_iterations):
-		r,v = RK4_step(r,v)
+		r,v = RK4_step(r,v, dt)
 		#print(i, r,v)
 		x_iter, y_iter, z_iter = r
 		if x_iter > xmax or x_iter < xmin or y_iter > ymax or y_iter < ymin or z_iter > zmax or z_iter < zmin:
@@ -149,15 +149,15 @@ for particle_i in range(N_particles):
 			z_positions[i]=z_iter
 			energies[i]=np.sum(v**2)
 
-	np.savetxt(str(particle_i)+"x_positions.dat", x_positions)
-	np.savetxt(str(particle_i)+"y_positions.dat", y_positions)
-	np.savetxt(str(particle_i)+"z_positions.dat", z_positions)
-	np.savetxt(str(particle_i)+"energies.dat", energies)
+	np.savetxt("RK4"+str(particle_i)+"x_positions.dat", x_positions)
+	np.savetxt("RK4"+str(particle_i)+"y_positions.dat", y_positions)
+	np.savetxt("RK4"+str(particle_i)+"z_positions.dat", z_positions)
+	np.savetxt("RK4"+str(particle_i)+"energies.dat", energies)
 
 	plt.plot(energies)
 	plt.title("Energia. Wzgledna wariacja = " +str((max(energies)-min(energies))/((max(energies)+min(energies))/2)))
 	plt.ylim(min(energies), max(energies))
-	plt.savefig(str(particle_i)+"energies.png")
+	plt.savefig("RK4"+str(particle_i)+"energies.png")
 	plt.clf()
 
 	mlab.plot3d(x_positions, y_positions, z_positions, tube_radius=None)
