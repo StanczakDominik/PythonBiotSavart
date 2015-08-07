@@ -27,7 +27,7 @@ if(os.path.isfile("grid_B.dat")):
 else:
 	grid_B=np.zeros_like(grid_positions)
 	for i in range(N_wires):
-		print("wire " +str(i))
+		# print("wire " +str(i))
 		angle = 2*i*np.pi/N_wires
 		x_wire_pos=r_wires*np.cos(angle)
 		y_wire_pos=r_wires*np.sin(angle)
