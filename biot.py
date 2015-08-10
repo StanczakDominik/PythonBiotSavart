@@ -5,9 +5,24 @@ from numpy import pi, sin, cos, mgrid
 from mayavi import mlab
 from biot_params import *
 import os.path
+import scipy.spatial
+import sys
+import shutil
 
-if(os.path.isfile("grid_positions.dat")):
-	grid_positions=np.loadtxt("grid_positions.dat")
+number_of_arguments = len(sys.argv)
+if number_of_arguments==1:
+    folder_name=""
+else:
+    folder_name=str(sys.argv[1]) +"/"
+    if not os.path.isdir(folder_name):
+        os.mkdir(folder_name)
+	shutil.copy2('biot.py',folder_name)
+	shutil.copy2('biot_plotter.py',folder_name)
+	shutil.copy2('biot_params.py',folder_name)
+
+if(os.path.isfile(folder_name+"grid_positions.dat")):
+	grid_positions=np.loadtxt(folder_name+"grid_positions.dat")
+	print("Loaded grid positions")
 else:
 	x,dx=np.linspace(xmin,xmax,NGRID,retstep=True)
 	y,dy=np.linspace(ymin,ymax,NGRID,retstep=True)
@@ -21,9 +36,12 @@ else:
 				grid_positions[row, 0] = vx
 				grid_positions[row, 1] = vy
 				grid_positions[row, 2] = vz
-	np.savetxt("grid_positions.dat", grid_positions)
-if(os.path.isfile("grid_B.dat")):
-	grid_B=np.loadtxt("grid_B.dat")
+
+	np.savetxt(folder_name+"grid_positions.dat", grid_positions)
+	print("Saved grid positions")
+if(os.path.isfile(folder_name+"grid_B.dat")):
+	grid_B=np.loadtxt(folder_name+"grid_B.dat")
+	print("Loaded grid fields")
 else:
 	grid_B=np.zeros_like(grid_positions)
 	for i in range(N_wires):
@@ -54,7 +72,8 @@ else:
 			grid_B += differential*MU/(4*np.pi)
 		grid_B[np.isinf(grid_B)] = np.nan
 		# mlab.plot3d(x_wire,y_wire,z_wire, tube_radius=None)
-	np.savetxt("grid_B.dat", grid_B)
+	np.savetxt(folder_name+"grid_B.dat", grid_B)
+	print("Saved grid fields")
 
 # grid_B[np.isinf(grid_B)] = 0
 
@@ -72,14 +91,15 @@ dt_cyclotron = np.abs(0.1*2*np.pi/np.max(B_magnitude_squared)/qmratio)
 print("dt = " + str(dt))
 print("dt cyclotron = " + str(dt_cyclotron))
 dt = dt_cyclotron
+
+mytree = scipy.spatial.cKDTree(grid_positions)
+
 def calculate_field(r):
-	rprime = grid_positions-r
-	distances=np.sqrt(np.sum(rprime**2, axis=1))
-	sorted_indices = np.argsort(distances)[:10]
-	rprime = rprime[sorted_indices, :]
-	local_B = grid_B[sorted_indices,:]
-	weights = np.sum(1/rprime**2, axis=1)
-	sum_weights = np.sum(weights)
+	distances, indices = mytree.query(r, k=10)
+	weights =1./(distances)
+	sum_weights=np.sum(weights)
+	local_B=grid_B[indices]
+
 	interpolated_BX = np.sum(local_B[:,0]*weights)/sum_weights
 	interpolated_BY = np.sum(local_B[:,1]*weights)/sum_weights
 	interpolated_BZ = np.sum(local_B[:,2]*weights)/sum_weights
@@ -124,10 +144,10 @@ for particle_i in range(N_particles):
 			z_positions[i]=z_iter
 			energies[i]=np.sum(v**2)
 
-	np.savetxt(str(particle_i)+"x_positions.dat", x_positions)
-	np.savetxt(str(particle_i)+"y_positions.dat", y_positions)
-	np.savetxt(str(particle_i)+"z_positions.dat", z_positions)
-	np.savetxt(str(particle_i)+"energies.dat", energies)
+	np.savetxt(folder_name+str(particle_i)+"x_positions.dat", x_positions)
+	np.savetxt(folder_name+str(particle_i)+"y_positions.dat", y_positions)
+	np.savetxt(folder_name+str(particle_i)+"z_positions.dat", z_positions)
+	np.savetxt(folder_name+str(particle_i)+"energies.dat", energies)
 
 	# plt.plot(energies)
 	# plt.title("Energia. Wzgledna wariacja = " +str((max(energies)-min(energies))/((max(energies)+min(energies))/2)))
@@ -138,4 +158,5 @@ for particle_i in range(N_particles):
 	# mlab.plot3d(x_positions, y_positions, z_positions, tube_radius=None)
 #####mlab.points3d(x_display,y_display,z_display, B_magnitude_squared[::display_every_n_point])
 # mlab.show()
+
 print("Finished.")

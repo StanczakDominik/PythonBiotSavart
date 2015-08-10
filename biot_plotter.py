@@ -4,6 +4,19 @@ import matplotlib.pyplot as plt
 from numpy import pi, sin, cos, mgrid
 from mayavi import mlab
 from biot_params import *
+import sys
+import shutil
+import os.path, os
+
+show_quiver=True
+
+number_of_arguments = len(sys.argv)
+if number_of_arguments==1:
+    folder_name=""
+else:
+    folder_name=str(sys.argv[1]) +"/"
+    if not os.path.isdir(folder_name):
+		sys.exit("Directory does not exist")
 
 for i in range(N_wires):
 	angle = 2*i*np.pi/N_wires
@@ -14,21 +27,24 @@ for i in range(N_wires):
 	y_wire=np.ones_like(z_wire)*y_wire_pos
 	mlab.plot3d(x_wire,y_wire,z_wire, np.zeros_like(z_wire), tube_radius=None)
 
-grid_positions=np.loadtxt("grid_positions.dat")
-grid_B=np.loadtxt("grid_B.dat")
-x_display=grid_positions[::display_every_n_point,0]
-y_display=grid_positions[::display_every_n_point,1]
-z_display=grid_positions[::display_every_n_point,2]
-bx_display=grid_B[::display_every_n_point,0]
-by_display=grid_B[::display_every_n_point,1]
-bz_display=grid_B[::display_every_n_point,2]
-mlab.quiver3d(x_display, y_display, z_display, bx_display, by_display, bz_display)
+if show_quiver:
+	grid_positions=np.loadtxt(folder_name+"grid_positions.dat")
+	grid_B=np.loadtxt(folder_name+"grid_B.dat")
+	x_display=grid_positions[::display_every_n_point,0]
+	y_display=grid_positions[::display_every_n_point,1]
+	z_display=grid_positions[::display_every_n_point,2]
+	bx_display=grid_B[::display_every_n_point,0]
+	by_display=grid_B[::display_every_n_point,1]
+	bz_display=grid_B[::display_every_n_point,2]
+	mlab.quiver3d(x_display, y_display, z_display, bx_display, by_display, bz_display)
+
 
 for particle_i in range(N_particles):
 	try:
-		x_positions=np.loadtxt(str(particle_i)+"x_positions.dat")
-		y_positions=np.loadtxt(str(particle_i)+"y_positions.dat")
-		z_positions=np.loadtxt(str(particle_i)+"z_positions.dat")
+		print("Loading particle " + str(particle_i))
+		x_positions=np.loadtxt(folder_name+str(particle_i)+"x_positions.dat")
+		y_positions=np.loadtxt(folder_name+str(particle_i)+"y_positions.dat")
+		z_positions=np.loadtxt(folder_name+str(particle_i)+"z_positions.dat")
 		mlab.plot3d(x_positions, y_positions, z_positions, tube_radius=None)
 	except IOError:
 		print("Failed to load particle " + str(particle_i))
