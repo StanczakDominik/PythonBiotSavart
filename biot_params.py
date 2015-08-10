@@ -16,8 +16,8 @@ N=100 #wire segments
 display_every_n_point=1
 low_cutoff_distance=0.0000001
 
-N_iterations=10000000
-N_particles=1
+N_iterations=100000
+N_particles=10
 
 electron_charge = -1.60217657e-19
 electron_mass = 9.10938291e-31
