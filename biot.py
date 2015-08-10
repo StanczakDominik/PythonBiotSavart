@@ -173,11 +173,11 @@ for particle_i in range(N_particles):
 	np.savetxt(folder_name+str(particle_i)+"z_positions.dat", z_positions)
 	np.savetxt(folder_name+str(particle_i)+"energies.dat", energies)
 
-	plt.plot(energies)
-	plt.title("Energia. Wzgledna wariacja = " +str((max(energies)-min(energies))/((max(energies)+min(energies))/2)))
-	plt.ylim(min(energies), max(energies))
-	plt.savefig(folder_name+str(particle_i)+"energies.png")
-	plt.clf()
+	# plt.plot(energies)
+	# plt.title("Energia. Wzgledna wariacja = " +str((max(energies)-min(energies))/((max(energies)+min(energies))/2)))
+	# plt.ylim(min(energies), max(energies))
+	# plt.savefig(folder_name+str(particle_i)+"energies.png")
+	# plt.clf()
 
 	# mlab.plot3d(x_positions, y_positions, z_positions, tube_radius=None)
 #####mlab.points3d(x_display,y_display,z_display, B_magnitude_squared[::display_every_n_point])
