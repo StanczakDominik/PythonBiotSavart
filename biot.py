@@ -9,7 +9,7 @@ import scipy.spatial
 import sys
 import shutil
 
-np.random.seed(1)
+np.random.seed(2)
 
 number_of_arguments = len(sys.argv)
 if number_of_arguments==1:
@@ -45,7 +45,7 @@ if(os.path.isfile(folder_name+"grid_B.dat")):
 	grid_B=np.loadtxt(folder_name+"grid_B.dat")
 	print("Loaded grid fields")
 else:
-	B0 = MU*wire_current/5.*np.pi
+	B0 = MU*wire_current/2.*np.pi
 	grid_B = np.zeros_like(grid_positions)
 	distances = np.sqrt(np.sum(grid_positions[:,:2]**2, axis=1))
 	indices_inside = distances < r_wires
@@ -133,7 +133,6 @@ for particle_i in range(N_particles):
 			z_positions[i-1:]=z_iter
 			v_velocities[i-1:]=vz
 			energies[i-1:]=np.sum(v**2)
-			print(energies[i-1]/energies[0])
 			break
 		else:
 			x_positions[i]=x_iter
@@ -148,11 +147,11 @@ for particle_i in range(N_particles):
 	np.savetxt(folder_name+str(particle_i)+"v_velocities.dat", z_positions)
 	np.savetxt(folder_name+str(particle_i)+"energies.dat", energies)
 
-	plt.plot(energies)
-	plt.title(energies)
-	plt.ylim(min(energies), max(energies))
-	plt.savefig(folder_name + str(particle_i)+"energies.png")
-	plt.show()
+	# plt.plot(energies)
+	# plt.title("Energia. Wzgledna wariacja = " +str((max(energies)-min(energies))/((max(energies)+min(energies))/2)))
+	# plt.ylim(min(energies), max(energies))
+	# plt.savefig(folder_name + str(particle_i)+"energies.png")
+	# plt.clf()
 	
 	# mlab.plot3d(x_positions, y_positions, z_positions, tube_radius=None)
 
