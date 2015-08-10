@@ -123,10 +123,8 @@ for particle_i in range(N_particles):
 	r=np.random.rand(3)
 	r[:2]=r[:2]*(xmax-xmin)+xmin
 	r[2] = r[2]*(zmax-zmin)+zmin
-	v0=(np.random.rand(3)*(xmax-xmin)+xmin)*velocity_scaling
-	v = v0
+	v=(np.random.rand(3)*(xmax-xmin)+xmin)*velocity_scaling
 	dummy, v = boris_step(r,v,-dt/2.)
-	print(v)
 	print("Moving particle " + str(particle_i))
 	for i in range(N_iterations):
 		r,v = boris_step(r,v,dt)
