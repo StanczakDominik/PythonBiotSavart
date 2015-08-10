@@ -9,7 +9,7 @@ import scipy.spatial
 import sys
 import shutil
 
-np.random.seed(1)
+np.random.seed(2)
 
 number_of_arguments = len(sys.argv)
 if number_of_arguments==1:
@@ -45,35 +45,25 @@ if(os.path.isfile(folder_name+"grid_B.dat")):
 	grid_B=np.loadtxt(folder_name+"grid_B.dat")
 	print("Loaded grid fields")
 else:
-	grid_B=np.zeros_like(grid_positions)
-	for i in range(N_wires):
-		# print("wire " +str(i))
-		angle = 2*i*np.pi/N_wires
-		x_wire_pos=r_wires*np.cos(angle)
-		y_wire_pos=r_wires*np.sin(angle)
-		z_wire=np.linspace(zmin,zmax,N)
-		x_wire=np.ones_like(z_wire)*x_wire_pos
-		y_wire=np.ones_like(z_wire)*y_wire_pos
-
-		wire = np.vstack((x_wire, y_wire, z_wire)).T
-		wire_gradient = np.gradient(wire)[0]
-		wire_length = np.sqrt(np.sum(wire_gradient**2, axis=1))
-		wire_gradient[:,0]*=dx
-		wire_gradient[:,1]*=dy
-		wire_gradient[:,2]*=dz
-		for index, wire_segment in enumerate(wire):
-			wire_segment_length = wire_gradient[index,:]*wire_length[index]
-			rprime=(grid_positions-wire_segment)
-			distances = np.sum(rprime**2, axis=1)**(3./2.)
-			denominator = np.vstack((distances, distances, distances)).T
-			differential=np.cross(wire_segment_length, rprime)/denominator*wire_current*1e7
-			low_cutoff_indices=distances<low_cutoff_distance
-			indices_cut_off=np.sum(low_cutoff_indices)
-			if(indices_cut_off>0):
-				differential[low_cutoff_indices, :] = 0
-			grid_B += differential*MU/(4*np.pi)
-		grid_B[np.isinf(grid_B)] = np.nan
-		# mlab.plot3d(x_wire,y_wire,z_wire, tube_radius=None)
+	B0 = MU*wire_current/2.*np.pi
+	grid_B = np.zeros_like(grid_positions)
+	distances = np.sqrt(np.sum(grid_positions[:,:2]**2, axis=1))
+	indices_inside = distances < r_wires
+	indices_outside=np.logical_not(indices_inside)
+	orientation=(grid_positions/np.dstack((distances, distances, distances)))[0]
+	print distances.shape, grid_B.shape, orientation.shape
+	print grid_B[indices_inside,0]
+	print distances[indices_inside]
+	print orientation[indices_inside,0]
+	grid_B[indices_inside,0] = B0 * distances[indices_inside]/r_wires*orientation[indices_inside,1]
+	grid_B[indices_inside,1] = B0 * distances[indices_inside]/r_wires*orientation[indices_inside,0]*(-1)
+	grid_B[indices_outside,0] = B0 * r_wires / distances[indices_outside]*orientation[indices_outside,1]
+	grid_B[indices_outside,1] = B0 * r_wires / distances[indices_outside]*orientation[indices_outside,0]*(-1)
+	grid_B[:,2] = 0.
+	print np.isinf(grid_B)
+	grid_B[np.isinf(grid_B)] = 0
+	grid_B[np.isnan(grid_B)] = 0
+	# mlab.plot3d(x_wire,y_wire,z_wire, tube_radius=None)
 	np.savetxt(folder_name+"grid_B.dat", grid_B)
 	print("Saved grid fields")
 
@@ -137,6 +127,7 @@ for particle_i in range(N_particles):
 		x_iter, y_iter, z_iter = r
 		vz = v[2]
 		if x_iter > xmax or x_iter < xmin or y_iter > ymax or y_iter < ymin or z_iter > zmax or z_iter < zmin:
+			print("Ran out of the area at i=" + str(i))
 			x_positions[i-1:]=x_iter
 			y_positions[i-1:]=y_iter
 			z_positions[i-1:]=z_iter
