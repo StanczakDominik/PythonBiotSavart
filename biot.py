@@ -9,6 +9,8 @@ import scipy.spatial
 import sys
 import shutil
 
+np.random.seed(1)
+
 number_of_arguments = len(sys.argv)
 if number_of_arguments==1:
     folder_name="RK4"
@@ -26,13 +28,13 @@ if(os.path.isfile(folder_name+"grid_positions.dat")):
 else:
 	x,dx=np.linspace(xmin,xmax,NGRID,retstep=True)
 	y,dy=np.linspace(ymin,ymax,NGRID,retstep=True)
-	z,dz=np.linspace(zmin,zmax,NGRID,retstep=True)
+	z,dz=np.linspace(zmin,zmax,NZGRID,retstep=True)
 
-	grid_positions=np.zeros((NGRID**3,3))
+	grid_positions=np.zeros((NGRID**2*NZGRID,3))
 	for ix, vx in enumerate(x):
 		for iy, vy in enumerate(y):
 			for iz, vz in enumerate(z):
-				row = NGRID**2*ix+NGRID*iy+iz
+				row = NZGRID*NGRID*ix+NZGRID*iy+iz
 				grid_positions[row, 0] = vx
 				grid_positions[row, 1] = vy
 				grid_positions[row, 2] = vz
@@ -94,7 +96,7 @@ dt = dt_cyclotron
 mytree = scipy.spatial.cKDTree(grid_positions)
 
 def calculate_field(r):
-	distances, indices = mytree.query(r, k=10)
+	distances, indices = mytree.query(r, k=25)
 	weights =1./(distances)
 	sum_weights=np.sum(weights)
 	local_B=grid_B[indices]
@@ -112,6 +114,7 @@ def boris_step(r, v, dt):
 	s = 2*t/(1.+np.sum(t*t))
 	v = v + np.cross(vprime,s)
 	r+=v*dt
+	r=r+v*dt
 	return r,v
 
 def RK4_step(r,v,dt):
@@ -146,40 +149,51 @@ for particle_i in range(N_particles):
 	x_positions=np.zeros(N_iterations)
 	y_positions=np.zeros(N_iterations)
 	z_positions=np.zeros(N_iterations)
+	v_velocities=np.zeros(N_iterations)
 	energies=np.zeros(N_iterations)
 	r=np.random.rand(3)
 	r[:2]=r[:2]*(xmax-xmin)+xmin
 	r[2] = r[2]*(zmax-zmin)+zmin
+	r/=2.
 	v=(np.random.rand(3)*(xmax-xmin)+xmin)*velocity_scaling
-	print("Moving particle " + str(particle_i))
+	print("Moving particle " + str(particle_i), r, v)
+	dummy, v = boris_step(r,v,-dt/2.)
 	for i in range(N_iterations):
 		r,v = RK4_step(r,v, dt)
 		#print(i, r,v)
 		x_iter, y_iter, z_iter = r
+		vz = v[2]
 		if x_iter > xmax or x_iter < xmin or y_iter > ymax or y_iter < ymin or z_iter > zmax or z_iter < zmin:
 			x_positions[i-1:]=x_iter
 			y_positions[i-1:]=y_iter
 			z_positions[i-1:]=z_iter
+			v_velocities[i-1:]=vz
 			energies[i-1:]=np.sum(v**2)
 			break
 		else:
 			x_positions[i]=x_iter
 			y_positions[i]=y_iter
 			z_positions[i]=z_iter
+			v_velocities[i]=vz
 			energies[i]=np.sum(v**2)
 
 	np.savetxt(folder_name+str(particle_i)+"x_positions.dat", x_positions)
 	np.savetxt(folder_name+str(particle_i)+"y_positions.dat", y_positions)
 	np.savetxt(folder_name+str(particle_i)+"z_positions.dat", z_positions)
+	np.savetxt(folder_name+str(particle_i)+"v_velocities.dat", z_positions)
 	np.savetxt(folder_name+str(particle_i)+"energies.dat", energies)
 
 	# plt.plot(energies)
 	# plt.title("Energia. Wzgledna wariacja = " +str((max(energies)-min(energies))/((max(energies)+min(energies))/2)))
 	# plt.ylim(min(energies), max(energies))
-	# plt.savefig(folder_name+str(particle_i)+"energies.png")
+	# plt.savefig(folder_name + str(particle_i)+"energies.png")
 	# plt.clf()
 
 	# mlab.plot3d(x_positions, y_positions, z_positions, tube_radius=None)
+
+	# plt.plot(v_velocities, "bo-")
+	# plt.show()
+
 #####mlab.points3d(x_display,y_display,z_display, B_magnitude_squared[::display_every_n_point])
 # mlab.show()
 

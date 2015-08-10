@@ -36,7 +36,7 @@ if show_quiver:
 	bx_display=grid_B[::display_every_n_point,0]
 	by_display=grid_B[::display_every_n_point,1]
 	bz_display=grid_B[::display_every_n_point,2]
-	mlab.quiver3d(x_display, y_display, z_display, bx_display, by_display, bz_display)
+	mlab.quiver3d(x_display, y_display, z_display, bx_display, by_display, bz_display, opacity = 0.1)
 
 
 for particle_i in range(N_particles):
@@ -45,7 +45,9 @@ for particle_i in range(N_particles):
 		x_positions=np.loadtxt(folder_name+str(particle_i)+"x_positions.dat")
 		y_positions=np.loadtxt(folder_name+str(particle_i)+"y_positions.dat")
 		z_positions=np.loadtxt(folder_name+str(particle_i)+"z_positions.dat")
-		mlab.plot3d(x_positions, y_positions, z_positions, tube_radius=None)
+		time=np.arange(len(z_positions))
+		plot=mlab.plot3d(x_positions, y_positions, z_positions, time, colormap='Spectral', tube_radius=None)
+		colorbar=mlab.colorbar(plot)
 	except IOError:
 		print("Failed to load particle " + str(particle_i))
 		break
