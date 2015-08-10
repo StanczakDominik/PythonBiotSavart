@@ -1,5 +1,6 @@
 import numpy as np
 NGRID=25
+NZGRID=25*5
 
 xmax=0.016
 xmin=-xmax
@@ -15,8 +16,8 @@ N=100 #wire segments
 display_every_n_point=1
 low_cutoff_distance=0.0000001
 
-N_iterations=100000
-N_particles=100
+N_iterations=1000000
+N_particles=1
 
 electron_charge = -1.60217657e-19
 electron_mass = 9.10938291e-31
@@ -26,7 +27,7 @@ deuteron_mass = 3.343583719e-27
 #3 keV
 #thermal velocity?
 
-qmratio=electron_charge/deuteron_mass
+qmratio=-electron_charge/deuteron_mass
 velocity_scaling=1e6
 dt=0.01/velocity_scaling
 MU=4e-7*np.pi
