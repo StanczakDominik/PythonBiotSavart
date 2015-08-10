@@ -9,6 +9,8 @@ import scipy.spatial
 import sys
 import shutil
 
+np.random.seed(1)
+
 number_of_arguments = len(sys.argv)
 if number_of_arguments==1:
     folder_name=""
@@ -95,7 +97,7 @@ dt = dt_cyclotron
 mytree = scipy.spatial.cKDTree(grid_positions)
 
 def calculate_field(r):
-	distances, indices = mytree.query(r, k=10)
+	distances, indices = mytree.query(r, k=25)
 	weights =1./(distances)
 	sum_weights=np.sum(weights)
 	local_B=grid_B[indices]
@@ -125,9 +127,10 @@ for particle_i in range(N_particles):
 	r=np.random.rand(3)
 	r[:2]=r[:2]*(xmax-xmin)+xmin
 	r[2] = r[2]*(zmax-zmin)+zmin
+	r/=2.
 	v=(np.random.rand(3)*(xmax-xmin)+xmin)*velocity_scaling
+	print("Moving particle " + str(particle_i), r, v)
 	dummy, v = boris_step(r,v,-dt/2.)
-	print("Moving particle " + str(particle_i))
 	for i in range(N_iterations):
 		r,v = boris_step(r,v,dt)
 		#print(i, r,v)

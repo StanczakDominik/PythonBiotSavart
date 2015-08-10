@@ -1,13 +1,13 @@
 import numpy as np
-NGRID=25
+NGRID=25*3
 NZGRID=25*5
 
 xmax=0.016
 xmin=-xmax
 ymax=xmax
 ymin=-ymax
-zmax=0.1
-zmin=0.
+zmax=0.1/2.
+zmin=-zmax
 
 N_wires=6
 r_wires = 0.008
@@ -16,7 +16,7 @@ N=100 #wire segments
 display_every_n_point=1
 low_cutoff_distance=0.0000001
 
-N_iterations=1000000
+N_iterations=10000000
 N_particles=1
 
 electron_charge = -1.60217657e-19
