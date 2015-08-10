@@ -7,6 +7,7 @@ from biot_params import *
 import os.path
 
 if(os.path.isfile("RK4grid_positions.dat")):
+	print("Loaded RK4 grid")
 	grid_positions=np.loadtxt("RK4grid_positions.dat")
 else:
 	x,dx=np.linspace(xmin,xmax,NGRID,retstep=True)
@@ -23,6 +24,7 @@ else:
 				grid_positions[row, 2] = vz
 	np.savetxt("RK4grid_positions.dat", grid_positions)
 if(os.path.isfile("RK4grid_B.dat")):
+	print("Loaded RK4 magnetic field")
 	grid_B=np.loadtxt("RK4grid_B.dat")
 else:
 	grid_B=np.zeros_like(grid_positions)
