@@ -1,0 +1,10 @@
+A Python program that solves for the magnetic field of an arbitrary infinitely
+thin wire geometry (or plugs in an exact field expression), and calculates the
+trajectory of a charged particle with a random initial state in this field.
+
+The magnetic field in the brute force method is solved via Biot-Savart's law.
+The default particle pusher is the Boris pusher, which conserves particle energy
+in magnetic fields.
+
+The script should be Python 3 compliant except for the Mayavi library, for which
+I could not find a Python 3 replacement.

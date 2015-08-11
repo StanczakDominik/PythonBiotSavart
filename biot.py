@@ -3,14 +3,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 from numpy import pi, sin, cos, mgrid
 from mayavi import mlab
-from biot_params import *
 import os.path
 import scipy.spatial
 import sys
 import shutil
 
-NGRID=25*5
-NZGRID=NZGRID*5
+NGRID=75
+NZGRID=NGRID*5
 
 xmax=0.016
 xmin=-xmax
@@ -19,7 +18,7 @@ ymin=-ymax
 zmax=0.1/2.
 zmin=-zmax
 
-N_wires=1
+N_wires=6
 r_wires = 0.008
 wire_current=1.e6/N_wires
 N=100 #wire segments
@@ -51,33 +50,74 @@ else:
     if not os.path.isdir(folder_name):
         os.mkdir(folder_name)
     shutil.copy2('biot.py',folder_name)
-    shutil.copy2('biot_plotter.py',folder_name)
-    shutil.copy2('biot_params.py',folder_name)
+    shutil.copy2('plot.py',folder_name)
 
 #########Grid functions####################
-def load_grid(mode_name=""):
-    if(os.path.isfile(folder_name+"grid_positions.dat")):
-        grid_positions=np.loadtxt(folder_name+"grid_positions.dat")
+
+def nonuniform_grid():
+    x,dx=np.linspace(xmin,xmax,NGRID,retstep=True)
+    y,dy=np.linspace(ymin,ymax,NGRID,retstep=True)
+    z,dz=np.linspace(zmin,zmax,NZGRID,retstep=True)
+    grid_positions=np.zeros((NGRID**2*NZGRID,3))
+    for ix, vx in enumerate(x):
+        for iy, vy in enumerate(y):
+            for iz, vz in enumerate(z):
+                row = NZGRID*NGRID*ix+NZGRID*iy+iz
+                grid_positions[row, 0] = vx
+                grid_positions[row, 1] = vy
+                grid_positions[row, 2] = vz
+    return grid_positions, dx, dy, dz
+
+def uniform_grid():             #doesn't quite work yet
+    dx = dy = (ymax - ymin)/NGRID
+    dz = (zmax-zmin)/NZGRID
+    step_size=min([dx, dz])
+
+    x = y = np.arange(xmin, xmax, step_size)
+    z = np.arange(zmin, zmax, step_size)
+    grid_positions=np.zeros((NGRID**2*NZGRID,3))
+    for ix, vx in enumerate(x):
+        for iy, vy in enumerate(y):
+            for iz, vz in enumerate(z):
+                row = NZGRID*NGRID*ix+NZGRID*iy+iz
+                grid_positions[row, 0] = vx
+                grid_positions[row, 1] = vy
+                grid_positions[row, 2] = vz
+    return grid_positions, dx, dy, dz
+
+def load_grid(grid_calculation_function, mode_name=""):
+    if(os.path.isfile(folder_name+mode_name+"grid_positions.dat")):
+        grid_positions=np.loadtxt(folder_name+mode_name+"grid_positions.dat")
+        dx, dy, dz = np.loadtxt(folder_name + mode_name + "step_sizes.dat")
         print("Loaded grid positions")
     else:
-        x,dx=np.linspace(xmin,xmax,NGRID,retstep=True)
-        y,dy=np.linspace(ymin,ymax,NGRID,retstep=True)
-        z,dz=np.linspace(zmin,zmax,NZGRID,retstep=True)
-
-        grid_positions=np.zeros((NGRID**2*NZGRID,3))
-        for ix, vx in enumerate(x):
-            for iy, vy in enumerate(y):
-                for iz, vz in enumerate(z):
-                    row = NZGRID*NGRID*ix+NZGRID*iy+iz
-                    grid_positions[row, 0] = vx
-                    grid_positions[row, 1] = vy
-                    grid_positions[row, 2] = vz
-
-        np.savetxt(folder_name+"grid_positions.dat", grid_positions)
+        grid_positions, dx, dy, dz = grid_calculation_function()
+        np.savetxt(folder_name + mode_name + "grid_positions.dat", grid_positions)
+        step_sizes = np.array((dx, dy, dz))
+        np.savetxt(folder_name + mode_name + "step_sizes.dat", step_sizes)
         print("Saved grid positions")
-    return grid_positions
+    return grid_positions, dx, dy, dz
 
-def biot_savart_field(N_wires=N_wires, r_wires=r_wires, mode_name=""):
+#########Magnetic field functions#########
+def exact_single_wire_field_grid(N_wires = 1, r_wires=0,mode_name=""):
+    print("Calculating field via exact single wire linear ramp formula")
+    B0 = MU*wire_current/5.*np.pi
+    grid_B = np.zeros_like(grid_positions)
+    distances = np.sqrt(np.sum(grid_positions[:,:2]**2, axis=1))
+    indices_inside = distances < r_wires
+    indices_outside=np.logical_not(indices_inside)
+    orientation=(grid_positions/np.dstack((distances, distances, distances)))[0]
+    grid_B[indices_inside,0] = B0 * distances[indices_inside]/r_wires*orientation[indices_inside,1]
+    grid_B[indices_inside,1] = B0 * distances[indices_inside]/r_wires*orientation[indices_inside,0]*(-1)
+    grid_B[indices_outside,0] = B0 * r_wires / distances[indices_outside]*orientation[indices_outside,1]
+    grid_B[indices_outside,1] = B0 * r_wires / distances[indices_outside]*orientation[indices_outside,0]*(-1)
+    grid_B[:,2] = 0.
+    grid_B[np.isinf(grid_B)] = 0
+    grid_B[np.isnan(grid_B)] = 0
+    return grid_B
+
+def biot_savart_field(N_wires=6, r_wires=0.08, mode_name=""):
+    print("Calculating field via Biot Savart")
     grid_B=np.zeros_like(grid_positions)
     for i in range(N_wires):
         # print("wire " +str(i))
@@ -107,19 +147,19 @@ def biot_savart_field(N_wires=N_wires, r_wires=r_wires, mode_name=""):
             grid_B += differential*MU/(4*np.pi)
         grid_B[np.isinf(grid_B)] = np.nan
         # mlab.plot3d(x_wire,y_wire,z_wire, tube_radius=None)
-    np.savetxt(folder_name+mode_name+"grid_B.dat", grid_B)
-    print("Saved grid fields")
     return grid_B
 
-def load_field(field_generation_function, mode_name):
-    if(os.path.isfile(folder_name+mode_name+"grid_B.dat")):
-        grid_B=np.loadtxt(folder_name+mode_name+"grid_B.dat")
+def load_field(field_generation_function, field_mode_name="", grid_mode_name=""):
+    if(os.path.isfile(folder_name+grid_mode_name+field_mode_name+"grid_B.dat")):
+        grid_B=np.loadtxt(folder_name+grid_mode_name+field_mode_name+"grid_B.dat")
         print("Loaded grid fields")
     else:
-        grid_B=field_generation_function(mode_name)
+        grid_B=field_generation_function(N_wires=N_wires, r_wires=r_wires, mode_name=field_mode_name)
+        np.savetxt(folder_name+grid_mode_name+field_mode_name+"grid_B.dat", grid_B)
+        print("Saved grid fields")
     return grid_B
 
-###########Particle pushing
+###########Solving fields at particle positions
 
 def field_interpolation(r):
     distances, indices = mytree.query(r, k=25)
@@ -133,6 +173,23 @@ def field_interpolation(r):
     array = np.array([interpolated_BX,interpolated_BY,interpolated_BZ])
     return array
 
+def exact_single_wire_field(r):
+    B=np.zeros(3)
+    B0 = MU*wire_current/5.*np.pi
+    distances = np.sqrt(np.sum(r[:2]**2))
+    orientation=r/distances
+
+    if distances<r_wires:
+        B[0] = B0 * distances/r_wires*orientation[1]
+        B[1] = B0 * distances/r_wires*orientation[0]*(-1)
+    else:
+        B[0] = B0 * r_wires / distances*orientation[1]
+        B[1] = B0 * r_wires / distances*orientation[0]*(-1)
+    B[np.isinf(B)] = 0
+    B[np.isnan(B)] = 0
+    return B
+
+############Particle pushing algorithms
 def boris_step(r, v, dt, calculate_field):
     field = calculate_field(r)
     t = qmratio*field*dt/2.
@@ -171,14 +228,14 @@ def RK4_step(r,v,dt, calculate_field):
 
 	return r,v
 
-def particle_loop(pusher_function, field_calculation_function, mode_name, N_particles, N_iterations, save_every_n_iterations=10, save_velocities=False):
-    np.random.seed(1)
+def particle_loop(pusher_function, field_calculation_function, mode_name, N_particles, N_iterations, save_every_n_iterations=10, save_velocities=False, seed=1):
+    np.random.seed(seed)
     N_iterations=int(N_iterations)
     N_particles=int(N_particles)
     print("Beginning push...")
     for particle_i in range(N_particles):
         positions=np.zeros((N_iterations,3))
-        velocities=np.zeros((N_iterations,3))
+        if save_velocities:velocities=np.zeros((N_iterations,3))
         r=np.random.rand(3)
         r[:2]=r[:2]*(xmax-xmin)+xmin
         r[2] = r[2]*(zmax-zmin)+zmin
@@ -202,13 +259,26 @@ def particle_loop(pusher_function, field_calculation_function, mode_name, N_part
                 if save_velocities: velocities[i,:]=v
         #TODO: make it only save every n interations in the first place to lower running memory reqs
         np.savetxt(folder_name+mode_name+str(particle_i)+"positions.dat", positions[::save_every_n_iterations])
-        np.savetxt(folder_name+mode_name+str(particle_i)+"velocities.dat", velocities[::save_every_n_iterations])
+        if save_velocities: np.savetxt(folder_name+mode_name+str(particle_i)+"velocities.dat", velocities[::save_every_n_iterations])
     print("Push finished.")
     return positions
 
-def compare_trajectories(exact_trajectory, trial_trajectory):
-    return np.sum((exact_trajectory-trial_trajectory)**2)
+##########################Diagnostics
 
+def calculate_variances(exact_trajectory, trial_trajectory):
+    lengths = (len(exact_trajectory), len(trial_trajectory))
+    min_len=min(lengths)
+    return np.sum((exact_trajectory[:min_len]-trial_trajectory[:min_len])**2, axis=1)
+
+def compare_trajectories(exact_trajectory, trial_trajectory):
+    variances = calculate_variances(exact_trajectory, trial_trajectory)
+    sum_of_variances = np.sum(variances)
+    plt.plot(variances)
+    plt.title("Total variance = " + str(sum_of_variances))
+    plt.ylabel("square difference")
+    plt.xlabel("iterations")
+    plt.savefig(folder_name + "Trajectory_comparison.png")
+    plt.clf()
 
 #####################Visualization
 
@@ -227,7 +297,7 @@ def display_wires(N_wires=1, r_wires=0):
 def display_quiver(grid_mode_name="", field_mode_name="", display_every_n_point=1):
     print("Loading quiver")
     grid_positions=np.loadtxt(folder_name+grid_mode_name+"grid_positions.dat")
-    grid_B=np.loadtxt(folder_name+field_mode_name+"grid_B.dat")
+    grid_B=np.loadtxt(folder_name+grid_mode_name+field_mode_name+"grid_B.dat")
     x_display=grid_positions[::display_every_n_point,0]
     y_display=grid_positions[::display_every_n_point,1]
     z_display=grid_positions[::display_every_n_point,2]
@@ -257,31 +327,25 @@ def display_particles(mode_name="", colormap="Spectral", all_colorbars=False):
     print("Loading particle display finished")
 
 if __name__ =="__main__":
-    grid_positions=load_grid()
-    grid_B=load_field(field_generation_function=biot_savart_field, mode_name="biot")
+    grid_positions, dx, dy, dz=load_grid(mode_name="nonuniform", grid_calculation_function=nonuniform_grid)
+    grid_B=load_field(field_generation_function=biot_savart_field, grid_mode_name="nonuniform", field_mode_name="biot")
+    mytree = scipy.spatial.cKDTree(grid_positions)
 
     #############Set time############################33
-
     B_magnitude = np.sqrt(np.sum(grid_B**2, axis=1))
-    print(np.max(B_magnitude))
+    print("Maximum field magnitude = " + str(np.max(B_magnitude)))
     dt_cyclotron = np.abs(0.1*2*np.pi/np.max(B_magnitude)/qmratio)
     print("dt = " + str(dt))
     print("dt cyclotron = " + str(dt_cyclotron))
     dt = dt_cyclotron
 
-
-    mytree = scipy.spatial.cKDTree(grid_positions)
-
-
-    particle_loop(pusher_function=boris_step, field_calculation_function = field_interpolation,
-        mode_name = "boris", N_particles = 1, N_iterations=1e5)
+    compare_trajectories(
+        particle_loop(pusher_function=boris_step, field_calculation_function = field_interpolation,
+        mode_name = "boris", N_particles = 1, N_iterations=1e5),
     particle_loop(pusher_function=RK4_step, field_calculation_function = field_interpolation,
-        mode_name = "RK4", N_particles = 1, N_iterations=1e5)
+        mode_name = "RK", N_particles = 1, N_iterations=1e5)
+        )
 
-    print("Finished.")
+    print("Finished calculation.")
 
-    display_wires(N_wires=6, r_wires=r_wires)
-    display_quiver(field_mode_name="biot")
-    display_particles(mode_name="boris")
-    display_particles(mode_name="RK4")
-    mlab.show()
+    from plot import *
