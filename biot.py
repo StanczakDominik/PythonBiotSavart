@@ -87,16 +87,30 @@ dt = dt_cyclotron
 mytree = scipy.spatial.cKDTree(grid_positions)
 
 def calculate_field(r):
-    distances, indices = mytree.query(r, k=25)
-    weights =1./(distances)
-    sum_weights=np.sum(weights)
-    local_B=grid_B[indices]
+    # distances, indices = mytree.query(r, k=25)
+    # weights =1./(distances)
+    # sum_weights=np.sum(weights)
+    # local_B=grid_B[indices]
+    #
+    # interpolated_BX = np.sum(local_B[:,0]*weights)/sum_weights
+    # interpolated_BY = np.sum(local_B[:,1]*weights)/sum_weights
+    # interpolated_BZ = np.sum(local_B[:,2]*weights)/sum_weights
+    # array = np.array([interpolated_BX,interpolated_BY,interpolated_BZ])
+    # return array
+    B=np.zeros(3)
+    B0 = MU*wire_current/5.*np.pi
+    distances = np.sqrt(np.sum(r[:2]**2))
+    orientation=r/distances
 
-    interpolated_BX = np.sum(local_B[:,0]*weights)/sum_weights
-    interpolated_BY = np.sum(local_B[:,1]*weights)/sum_weights
-    interpolated_BZ = np.sum(local_B[:,2]*weights)/sum_weights
-    array = np.array([interpolated_BX,interpolated_BY,interpolated_BZ])
-    return array
+    if distances<r_wires:
+        B[0] = B0 * distances/r_wires*orientation[1]
+        B[1] = B0 * distances/r_wires*orientation[0]*(-1)
+    else:
+        B[0] = B0 * r_wires / distances*orientation[1]
+        B[1] = B0 * r_wires / distances*orientation[0]*(-1)
+    B[np.isinf(B)] = 0
+    B[np.isnan(B)] = 0
+    return B
 
 def boris_step(r, v, dt):
     field = calculate_field(r)
@@ -109,11 +123,8 @@ def boris_step(r, v, dt):
     return r,v
 
 for particle_i in range(N_particles):
-    x_positions=np.zeros(N_iterations)
-    y_positions=np.zeros(N_iterations)
-    z_positions=np.zeros(N_iterations)
-    v_velocities=np.zeros(N_iterations)
-    energies=np.zeros(N_iterations)
+    positions=np.zeros((N_iterations,3))
+    velocities=np.zeros((N_iterations,3))
     r=np.random.rand(3)
     r[:2]=r[:2]*(xmax-xmin)+xmin
     r[2] = r[2]*(zmax-zmin)+zmin
@@ -125,41 +136,15 @@ for particle_i in range(N_particles):
         r,v = boris_step(r,v,dt)
         #print(i, r,v)
         x_iter, y_iter, z_iter = r
-        vz = v[2]
         if x_iter > xmax or x_iter < xmin or y_iter > ymax or y_iter < ymin or z_iter > zmax or z_iter < zmin:
             print("Ran out of the area at i=" + str(i))
-            x_positions[i-1:]=x_iter
-            y_positions[i-1:]=y_iter
-            z_positions[i-1:]=z_iter
-            v_velocities[i-1:]=vz
-            energies[i-1:]=np.sum(v**2)
-            print(energies[i-1]/energies[0])
+            positions=positions[:i,:]
+            velocities=velocities[i:,:]
             break
         else:
-            x_positions[i]=x_iter
-            y_positions[i]=y_iter
-            z_positions[i]=z_iter
-            v_velocities[i]=vz
-            energies[i]=np.sum(v**2)
-
-    np.savetxt(folder_name+str(particle_i)+"x_positions.dat", x_positions)
-    np.savetxt(folder_name+str(particle_i)+"y_positions.dat", y_positions)
-    np.savetxt(folder_name+str(particle_i)+"z_positions.dat", z_positions)
-    np.savetxt(folder_name+str(particle_i)+"v_velocities.dat", z_positions)
-    np.savetxt(folder_name+str(particle_i)+"energies.dat", energies)
-
-    plt.plot(energies)
-    plt.title(energies)
-    plt.ylim(min(energies), max(energies))
-    plt.savefig(folder_name + str(particle_i)+"energies.png")
-    plt.show()
-
-    # mlab.plot3d(x_positions, y_positions, z_positions, tube_radius=None)
-
-    # plt.plot(v_velocities, "bo-")
-    # plt.show()
-
-#####mlab.points3d(x_display,y_display,z_display, B_magnitude_squared[::display_every_n_point])
-# mlab.show()
+            positions[i,:]=r
+            velocities[i,:]=v
+    np.savetxt(folder_name+str(particle_i)+"positions.dat", positions)
+    np.savetxt(folder_name+str(particle_i)+"velocities.dat", positions)
 
 print("Finished.")
