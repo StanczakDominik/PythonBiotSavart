@@ -96,7 +96,7 @@ dt = dt_cyclotron
 
 mytree = scipy.spatial.cKDTree(grid_positions)
 
-def calculate_field(r):
+def field_interpolation(r):
     distances, indices = mytree.query(r, k=25)
     weights =1./(distances)
     sum_weights=np.sum(weights)
@@ -108,7 +108,7 @@ def calculate_field(r):
     array = np.array([interpolated_BX,interpolated_BY,interpolated_BZ])
     return array
 
-def boris_step(r, v, dt):
+def boris_step(r, v, dt, calculate_field):
     field = calculate_field(r)
     t = qmratio*field*dt/2.
     vprime = v + np.cross(v,t)
@@ -127,9 +127,9 @@ for particle_i in range(N_particles):
     r/=2.
     v=(np.random.rand(3)*(xmax-xmin)+xmin)*velocity_scaling
     print("Moving particle " + str(particle_i), r, v)
-    dummy, v = boris_step(r,v,-dt/2.)
+    dummy, v = boris_step(r,v,-dt/2., field_interpolation)
     for i in range(N_iterations):
-        r,v = boris_step(r,v,dt)
+        r,v = boris_step(r,v,dt, field_interpolation)
         #print(i, r,v)
         x_iter, y_iter, z_iter = r
         if x_iter > xmax or x_iter < xmin or y_iter > ymax or y_iter < ymin or z_iter > zmax or z_iter < zmin:
