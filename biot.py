@@ -76,10 +76,12 @@ def uniform_grid():             #doesn't quite work yet
     x = y = np.arange(xmin, xmax, step_size)
     z = np.arange(zmin, zmax, step_size)
     grid_positions=np.zeros((NGRID**2*NZGRID,3))
+    NGRID_local = len(x)
+    NZGRID_local = len(z)
     for ix, vx in enumerate(x):
         for iy, vy in enumerate(y):
             for iz, vz in enumerate(z):
-                row = NZGRID*NGRID*ix+NZGRID*iy+iz
+                row = NZGRID_local*NGRID_local*ix+NZGRID_local*iy+iz
                 grid_positions[row, 0] = vx
                 grid_positions[row, 1] = vy
                 grid_positions[row, 2] = vz
@@ -327,8 +329,8 @@ def display_particles(mode_name="", colormap="Spectral", all_colorbars=False):
     print("Loading particle display finished")
 
 if __name__ =="__main__":
-    grid_positions, dx, dy, dz=load_grid(mode_name="nonuniform", grid_calculation_function=nonuniform_grid)
-    grid_B=load_field(field_generation_function=biot_savart_field, grid_mode_name="nonuniform", field_mode_name="biot")
+    grid_positions, dx, dy, dz=load_grid(mode_name="uniform", grid_calculation_function=uniform_grid)
+    grid_B=load_field(field_generation_function=biot_savart_field, grid_mode_name="uniform", field_mode_name="biot")
     mytree = scipy.spatial.cKDTree(grid_positions)
 
     #############Set time############################33
