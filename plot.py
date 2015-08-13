@@ -1,8 +1,9 @@
 from biot import *
 
+# display_wires(N_wires=6, r_wires=r_wires)
 display_wires(N_wires=6, r_wires=r_wires)
-display_quiver(grid_mode_name = "uniform", field_mode_name="biot")
+display_quiver()
 display_particles(mode_name="boris", colormap="Blues")
-display_particles(mode_name="RK4", colormap="Reds")
+# display_particles(mode_name="borisexact", colormap="Blues")
 print("Finished display")
 mlab.show()

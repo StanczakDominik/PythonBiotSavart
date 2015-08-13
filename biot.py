@@ -8,8 +8,8 @@ import scipy.spatial
 import sys
 import shutil
 
-NGRID=75
-NZGRID=NGRID*5
+NGRID=50
+NZGRID=NGRID
 
 xmax=0.016
 xmin=-xmax
@@ -18,12 +18,12 @@ ymin=-ymax
 zmax=0.1/2.
 zmin=-zmax
 
-N_wires=6
+N_wires=1
 r_wires = 0.008
 wire_current=1.e6/N_wires
-N=100 #wire segments
+N=NGRID*12.5 #wire segments
 display_every_n_point=1
-low_cutoff_distance=0.0000001
+low_cutoff_distance=0.0000000000001
 
 N_iterations=100000
 N_particles=10
@@ -75,9 +75,9 @@ def uniform_grid():             #doesn't quite work yet
 
     x = y = np.arange(xmin, xmax, step_size)
     z = np.arange(zmin, zmax, step_size)
-    grid_positions=np.zeros((NGRID**2*NZGRID,3))
     NGRID_local = len(x)
     NZGRID_local = len(z)
+    grid_positions=np.zeros((NGRID_local**2*NZGRID_local,3))
     for ix, vx in enumerate(x):
         for iy, vy in enumerate(y):
             for iz, vz in enumerate(z):
@@ -86,6 +86,23 @@ def uniform_grid():             #doesn't quite work yet
                 grid_positions[row, 1] = vy
                 grid_positions[row, 2] = vz
     return grid_positions, dx, dy, dz
+
+def y_axis_grid():
+    dx = 0
+    dy = 0.01
+    dz = 0
+    y = np.arange(0,1,dy)
+    x=z=np.zeros_like(y)
+    grid_positions=np.zeros((len(y)**3,3))
+    for ix, vx in enumerate(x):
+        for iy, vy in enumerate(y):
+            for iz, vz in enumerate(z):
+                row = len(y)**2*ix+len(y)*iy+iz
+                grid_positions[row, 0] = vx
+                grid_positions[row, 1] = vy
+                grid_positions[row, 2] = vz
+    return grid_positions, dx, dy, dz
+
 
 def load_grid(grid_calculation_function, mode_name=""):
     if(os.path.isfile(folder_name+mode_name+"grid_positions.dat")):
@@ -101,9 +118,9 @@ def load_grid(grid_calculation_function, mode_name=""):
     return grid_positions, dx, dy, dz
 
 #########Magnetic field functions#########
-def exact_single_wire_field_grid(N_wires = 1, r_wires=0,mode_name=""):
-    print("Calculating field via exact single wire linear ramp formula")
-    B0 = MU*wire_current/5.*np.pi
+def exact_ramp_field_grid(N_wires = 1, r_wires=0,mode_name="", N=N):
+    print("Calculating field via exact linear ramp formula")
+    B0 = MU*wire_current/5./np.pi
     grid_B = np.zeros_like(grid_positions)
     distances = np.sqrt(np.sum(grid_positions[:,:2]**2, axis=1))
     indices_inside = distances < r_wires
@@ -114,11 +131,33 @@ def exact_single_wire_field_grid(N_wires = 1, r_wires=0,mode_name=""):
     grid_B[indices_outside,0] = B0 * r_wires / distances[indices_outside]*orientation[indices_outside,1]
     grid_B[indices_outside,1] = B0 * r_wires / distances[indices_outside]*orientation[indices_outside,0]*(-1)
     grid_B[:,2] = 0.
+    low_cutoff_indices=distances<low_cutoff_distance
+    indices_cut_off=np.sum(low_cutoff_indices)
+    if(indices_cut_off>0):
+        grid_B[low_cutoff_indices, :] = 0
     grid_B[np.isinf(grid_B)] = 0
     grid_B[np.isnan(grid_B)] = 0
     return grid_B
 
-def biot_savart_field(N_wires=6, r_wires=0.08, mode_name=""):
+def exact_single_wire_field_grid(N_wires = 1, r_wires=0,mode_name="", N=N):
+    print("Calculating field via exact single wire ramp formula")
+    B0 = MU*wire_current/2./np.pi
+    grid_B = np.zeros_like(grid_positions)
+    distances = np.sqrt(np.sum(grid_positions[:,:2]**2, axis=1))
+    orientation=(grid_positions/np.dstack((distances, distances, distances)))[0]
+    grid_B[:,0] = -B0 / distances*orientation[:,1]
+    grid_B[:,1] = B0 / distances*orientation[:,0]
+    grid_B[:,2] = 0.
+    low_cutoff_indices=distances<low_cutoff_distance
+    indices_cut_off=np.sum(low_cutoff_indices)
+    if(indices_cut_off>0):
+        grid_B[low_cutoff_indices, :] = 0
+    grid_B[np.isinf(grid_B)] = 0
+    grid_B[np.isnan(grid_B)] = 0
+    return grid_B
+
+
+def biot_savart_field(N_wires=6, r_wires=0.08, wire_current=1e6, mode_name="", N=N):
     print("Calculating field via Biot Savart")
     grid_B=np.zeros_like(grid_positions)
     for i in range(N_wires):
@@ -133,25 +172,30 @@ def biot_savart_field(N_wires=6, r_wires=0.08, mode_name=""):
         wire = np.vstack((x_wire, y_wire, z_wire)).T
         wire_gradient = np.gradient(wire)[0]
         wire_length = np.sqrt(np.sum(wire_gradient**2, axis=1))
-        wire_gradient[:,0]*=dx
-        wire_gradient[:,1]*=dy
-        wire_gradient[:,2]*=dz
+        wire_gradient *= np.vstack((wire_length, wire_length, wire_length)).T
+        # wire_gradient[:,0] /= dx
+        # wire_gradient[:,1] /= dy
+        # wire_gradient[:,2] /= dz
         for index, wire_segment in enumerate(wire):
-            wire_segment_length = wire_gradient[index,:]*wire_length[index]
+            # print("wire segment", wire_segment)
+            # print("wire_gradient", wire_gradient[index,:])
+            # print("wire length",wire_length[index])
+            wire_segment_length = wire_gradient[index,:]#*wire_length[index]
             rprime=(grid_positions-wire_segment)
             distances = np.sum(rprime**2, axis=1)**(3./2.)
             denominator = np.vstack((distances, distances, distances)).T
-            differential=np.cross(wire_segment_length, rprime)/denominator*wire_current*1e7
+            differential=np.cross(wire_segment_length, rprime)/denominator*wire_current
             low_cutoff_indices=distances<low_cutoff_distance
             indices_cut_off=np.sum(low_cutoff_indices)
             if(indices_cut_off>0):
                 differential[low_cutoff_indices, :] = 0
-            grid_B += differential*MU/(4*np.pi)
+            grid_B += differential*MU/np.pi/(4)
         grid_B[np.isinf(grid_B)] = np.nan
         # mlab.plot3d(x_wire,y_wire,z_wire, tube_radius=None)
+    grid_B*=N*10#np.pi**2
     return grid_B
 
-def load_field(field_generation_function, field_mode_name="", grid_mode_name=""):
+def load_field(field_generation_function, field_mode_name="", grid_mode_name="", N_wires=N_wires, r_wires=r_wires, N=N):
     if(os.path.isfile(folder_name+grid_mode_name+field_mode_name+"grid_B.dat")):
         grid_B=np.loadtxt(folder_name+grid_mode_name+field_mode_name+"grid_B.dat")
         print("Loaded grid fields")
@@ -175,18 +219,30 @@ def field_interpolation(r):
     array = np.array([interpolated_BX,interpolated_BY,interpolated_BZ])
     return array
 
-def exact_single_wire_field(r):
+def exact_ramp_field(r):
     B=np.zeros(3)
-    B0 = MU*wire_current/5.*np.pi
+    B0 = MU*wire_current/5./np.pi
     distances = np.sqrt(np.sum(r[:2]**2))
     orientation=r/distances
 
     if distances<r_wires:
-        B[0] = B0 * distances/r_wires*orientation[1]
-        B[1] = B0 * distances/r_wires*orientation[0]*(-1)
+        B[0] = -B0 * distances/r_wires*orientation[1]
+        B[1] = B0 * distances/r_wires*orientation[0]
     else:
-        B[0] = B0 * r_wires / distances*orientation[1]
-        B[1] = B0 * r_wires / distances*orientation[0]*(-1)
+        B[0] = -B0 * r_wires / distances*orientation[1]
+        B[1] = B0 * r_wires / distances*orientation[0]
+    B[np.isinf(B)] = 0
+    B[np.isnan(B)] = 0
+    return B
+
+def exact_single_wire_field(r):
+    B=np.zeros(3)
+    B0 = MU*wire_current/2./np.pi
+    distances = np.sqrt(np.sum(r[:2]**2))
+    orientation=r/distances
+
+    B[0] = B0 / distances*orientation[1]
+    B[1] = -B0 / distances*orientation[0]
     B[np.isinf(B)] = 0
     B[np.isnan(B)] = 0
     return B
@@ -245,7 +301,9 @@ def particle_loop(pusher_function, field_calculation_function, mode_name, N_part
         v=np.zeros(3)
         v[:2]=(np.random.rand(2)*(xmax-xmin)+xmin)*velocity_scaling
         v[2]=(np.random.rand()*(zmax-zmin)+zmin)*velocity_scaling
-        print("Moving particle " + str(particle_i), r, v)
+        print("Moving particle " + str(particle_i))
+        print(r)
+        print(v)
         if (pusher_function==boris_step):
             dummy, v = pusher_function(r,v,-dt/2., field_calculation_function)
         for i in range(N_iterations):
@@ -306,9 +364,36 @@ def display_quiver(grid_mode_name="", field_mode_name="", display_every_n_point=
     bx_display=grid_B[::display_every_n_point,0]
     by_display=grid_B[::display_every_n_point,1]
     bz_display=grid_B[::display_every_n_point,2]
-    mlab.quiver3d(x_display, y_display, z_display, bx_display, by_display, bz_display, opacity = 0.01)
+    quiver=mlab.quiver3d(x_display, y_display, z_display, bx_display, by_display, bz_display, opacity = 0.1)
+    mlab.vectorbar(quiver, orientation='vertical')
 
+def display_difference_quiver(grid1, grid2, display_every_n_point=1):
+    x_display=grid_positions[::display_every_n_point,0]
+    y_display=grid_positions[::display_every_n_point,1]
+    z_display=grid_positions[::display_every_n_point,2]
+    grid1fig = mlab.figure()
+    grid1plot=mlab.quiver3d(x_display, y_display, z_display, grid1[:,0], grid1[:,1], grid1[:,2], opacity = 0.2, figure=grid1fig, colormap="Blues")
+    grid2fig = mlab.figure()
+    grid2plot=mlab.quiver3d(x_display, y_display, z_display, grid2[:,0], grid2[:,1], grid2[:,2], opacity = 0.2, figure=grid2fig, colormap="Reds")
+    scale=np.max(grid2)/np.max(grid1)
+    print("======SCALE " + str(scale) + "==========")
+    # grid1*=scale
+    difference = grid1-grid2
+    bx_display=difference[::display_every_n_point,0]
+    by_display=difference[::display_every_n_point,1]
+    bz_display=difference[::display_every_n_point,2]
+    difffig = mlab.figure()
+    diffplot=mlab.quiver3d(x_display, y_display, z_display, bx_display, by_display, bz_display, opacity = 0.2, figure=difffig)
+    # length = int(len(difference)/2)
+    # for i in range(length, length+100):
+    #     print(str(grid1[i,:]) + str(grid2[i,:]) + str(difference[i,:]))
+    mlab.quiver3d(x_display, y_display, z_display, grid2[:,0], grid2[:,1], grid2[:,2], opacity = 0.2, figure=grid2fig)
+    mlab.colorbar(diffplot)
+    mlab.colorbar(grid1plot)
+    mlab.colorbar(grid2plot)
+    return scale
 def display_particles(mode_name="", colormap="Spectral", all_colorbars=False):
+    print("Displaying particles from mode " + mode_name)
     particle_i=0
     while True:
         particle_file_name=folder_name+mode_name+str(particle_i)+"positions.dat"
@@ -329,25 +414,44 @@ def display_particles(mode_name="", colormap="Spectral", all_colorbars=False):
     print("Loading particle display finished")
 
 if __name__ =="__main__":
-    grid_positions, dx, dy, dz=load_grid(mode_name="uniform", grid_calculation_function=uniform_grid)
-    grid_B=load_field(field_generation_function=biot_savart_field, grid_mode_name="uniform", field_mode_name="biot")
+    grid_positions, dx, dy, dz=load_grid(grid_calculation_function=uniform_grid)
+    # grid_positions, dx, dy, dz=load_grid(grid_calculation_function=y_axis_grid)
+    print(grid_positions)
+    grid_B=load_field(field_generation_function=biot_savart_field, N_wires=6, r_wires=r_wires, N=N)
+    # grid_exact = exact_single_wire_field_grid(N=N)
+    # grid_exact = load_field(field_generation_function=exact_single_wire_field_grid)
+    # scales=[]
+    # N_list=[5, 10, 15, 20, 25, 30, 40, 50, 60, 100, 125, 150, 175, 200, 300, 400, 500, 600, 700, 750, 800, 900, 1000]
+    # for N in N_list:
+    #     print N
+    #     scales.append(display_difference_quiver(grid_exact, biot_savart_field(N=N, N_wires = 1, r_wires=0.)))
+    # display_difference_quiver(grid_B, grid_exact)
+    # print("Biot savart - niebieskie, exact - czerwone")
+    # plt.plot(N_list, scales)
+    # plt.show()
+
+
     mytree = scipy.spatial.cKDTree(grid_positions)
 
     #############Set time############################33
     B_magnitude = np.sqrt(np.sum(grid_B**2, axis=1))
     print("Maximum field magnitude = " + str(np.max(B_magnitude)))
+    # exact_B_magnitude = np.sqrt(np.sum(grid_exact   **2, axis=1))
+    # print("Maximum exact field magnitude = " + str(np.max(exact_B_magnitude)))
     dt_cyclotron = np.abs(0.1*2*np.pi/np.max(B_magnitude)/qmratio)
     print("dt = " + str(dt))
     print("dt cyclotron = " + str(dt_cyclotron))
     dt = dt_cyclotron
+    dt=1e-12
 
-    compare_trajectories(
-        particle_loop(pusher_function=boris_step, field_calculation_function = field_interpolation,
-        mode_name = "boris", N_particles = 1, N_iterations=1e5),
     particle_loop(pusher_function=RK4_step, field_calculation_function = field_interpolation,
-        mode_name = "RK", N_particles = 1, N_iterations=1e5)
-        )
-
+        mode_name = "RK4", N_particles = 1, N_iterations=1e7)
     print("Finished calculation.")
 
-    from plot import *
+    display_wires(N_wires=1, r_wires=0)
+    display_quiver()
+    display_particles(mode_name="boris", colormap="Blues")
+    display_particles(mode_name="RK4", colormap="Reds")
+
+    print("Finished display")
+    mlab.show()
