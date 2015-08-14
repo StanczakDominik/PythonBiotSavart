@@ -27,7 +27,7 @@ low_cutoff_distance=0.0000000000001
 
 N_iterations=100000
 N_particles=10
-
+N_interpolation=25
 electron_charge = -1.60217657e-19
 electron_mass = 9.10938291e-31
 
@@ -87,23 +87,6 @@ def uniform_grid():             #doesn't quite work yet
                 grid_positions[row, 2] = vz
     return grid_positions, dx, dy, dz
 
-def y_axis_grid():
-    dx = 0
-    dy = 0.01
-    dz = 0
-    y = np.arange(0,1,dy)
-    x=z=np.zeros_like(y)
-    grid_positions=np.zeros((len(y)**3,3))
-    for ix, vx in enumerate(x):
-        for iy, vy in enumerate(y):
-            for iz, vz in enumerate(z):
-                row = len(y)**2*ix+len(y)*iy+iz
-                grid_positions[row, 0] = vx
-                grid_positions[row, 1] = vy
-                grid_positions[row, 2] = vz
-    return grid_positions, dx, dy, dz
-
-
 def load_grid(grid_calculation_function, mode_name=""):
     if(os.path.isfile(folder_name+mode_name+"grid_positions.dat")):
         grid_positions=np.loadtxt(folder_name+mode_name+"grid_positions.dat")
@@ -127,9 +110,9 @@ def exact_ramp_field_grid(N_wires = 1, r_wires=0,mode_name="", N=N):
     indices_outside=np.logical_not(indices_inside)
     orientation=(grid_positions/np.dstack((distances, distances, distances)))[0]
     grid_B[indices_inside,0] = B0 * distances[indices_inside]/r_wires*orientation[indices_inside,1]
-    grid_B[indices_inside,1] = B0 * distances[indices_inside]/r_wires*orientation[indices_inside,0]*(-1)
+    grid_B[indices_inside,1] = -B0 * distances[indices_inside]/r_wires*orientation[indices_inside,0]
     grid_B[indices_outside,0] = B0 * r_wires / distances[indices_outside]*orientation[indices_outside,1]
-    grid_B[indices_outside,1] = B0 * r_wires / distances[indices_outside]*orientation[indices_outside,0]*(-1)
+    grid_B[indices_outside,1] = -B0 * r_wires / distances[indices_outside]*orientation[indices_outside,0]
     grid_B[:,2] = 0.
     low_cutoff_indices=distances<low_cutoff_distance
     indices_cut_off=np.sum(low_cutoff_indices)
@@ -207,9 +190,9 @@ def load_field(field_generation_function, field_mode_name="", grid_mode_name="",
 
 ###########Solving fields at particle positions
 
-def field_interpolation(r):
-    distances, indices = mytree.query(r, k=25)
-    weights =1./(distances)
+def field_interpolation(r, N_interpolation=N_interpolation):
+    distances, indices = mytree.query(r, k=N_interpolation)
+    weights =1./(distances)**20
     sum_weights=np.sum(weights)
     local_B=grid_B[indices]
 
@@ -219,23 +202,23 @@ def field_interpolation(r):
     array = np.array([interpolated_BX,interpolated_BY,interpolated_BZ])
     return array
 
-def exact_ramp_field(r):
+def exact_ramp_field(r, N_interpolation = N_interpolation):
     B=np.zeros(3)
     B0 = MU*wire_current/5./np.pi
     distances = np.sqrt(np.sum(r[:2]**2))
     orientation=r/distances
 
     if distances<r_wires:
-        B[0] = -B0 * distances/r_wires*orientation[1]
-        B[1] = B0 * distances/r_wires*orientation[0]
+        B[0] = B0 * distances/r_wires*orientation[1]
+        B[1] = -B0 * distances/r_wires*orientation[0]
     else:
-        B[0] = -B0 * r_wires / distances*orientation[1]
-        B[1] = B0 * r_wires / distances*orientation[0]
+        B[0] = B0 * r_wires / distances*orientation[1]
+        B[1] = -B0 * r_wires / distances*orientation[0]
     B[np.isinf(B)] = 0
     B[np.isnan(B)] = 0
     return B
 
-def exact_single_wire_field(r):
+def exact_single_wire_field(r, N_interpolation = N_interpolation):
     B=np.zeros(3)
     B0 = MU*wire_current/2./np.pi
     distances = np.sqrt(np.sum(r[:2]**2))
@@ -248,8 +231,8 @@ def exact_single_wire_field(r):
     return B
 
 ############Particle pushing algorithms
-def boris_step(r, v, dt, calculate_field):
-    field = calculate_field(r)
+def boris_step(r, v, dt, calculate_field, N_interpolation=N_interpolation):
+    field = calculate_field(r, N_interpolation = N_interpolation)
     t = qmratio*field*dt/2.
     vprime = v + np.cross(v,t)
     s = 2*t/(1.+np.sum(t*t))
@@ -286,7 +269,9 @@ def RK4_step(r,v,dt, calculate_field):
 
 	return r,v
 
-def particle_loop(pusher_function, field_calculation_function, mode_name, N_particles, N_iterations, save_every_n_iterations=10, save_velocities=False, seed=1):
+def particle_loop(pusher_function, field_calculation_function, mode_name, N_particles,
+        N_iterations, save_every_n_iterations=10, save_velocities=False, seed=1,
+        N_interpolation=N_interpolation):
     np.random.seed(seed)
     N_iterations=int(N_iterations)
     N_particles=int(N_particles)
@@ -307,7 +292,7 @@ def particle_loop(pusher_function, field_calculation_function, mode_name, N_part
         if (pusher_function==boris_step):
             dummy, v = pusher_function(r,v,-dt/2., field_calculation_function)
         for i in range(N_iterations):
-            r,v = pusher_function(r,v,dt, field_calculation_function)
+            r,v = pusher_function(r,v,dt, field_calculation_function, N_interpolation=N_interpolation)
             x_iter, y_iter, z_iter = r
             if x_iter > xmax or x_iter < xmin or y_iter > ymax or y_iter < ymin or z_iter > zmax or z_iter < zmin:
                 print("Ran out of the area at i=" + str(i))
@@ -330,15 +315,19 @@ def calculate_variances(exact_trajectory, trial_trajectory):
     min_len=min(lengths)
     return np.sum((exact_trajectory[:min_len]-trial_trajectory[:min_len])**2, axis=1)
 
+compared_trajectories_number=0
 def compare_trajectories(exact_trajectory, trial_trajectory):
+    global compared_trajectories_number
     variances = calculate_variances(exact_trajectory, trial_trajectory)
     sum_of_variances = np.sum(variances)
     plt.plot(variances)
     plt.title("Total variance = " + str(sum_of_variances))
     plt.ylabel("square difference")
     plt.xlabel("iterations")
-    plt.savefig(folder_name + "Trajectory_comparison.png")
+    plt.savefig(folder_name + "Trajectory_comparison" + str(compared_trajectories_number)+".png")
+    compared_trajectories_number+=1
     plt.clf()
+    return sum_of_variances
 
 #####################Visualization
 
@@ -364,7 +353,7 @@ def display_quiver(grid_mode_name="", field_mode_name="", display_every_n_point=
     bx_display=grid_B[::display_every_n_point,0]
     by_display=grid_B[::display_every_n_point,1]
     bz_display=grid_B[::display_every_n_point,2]
-    quiver=mlab.quiver3d(x_display, y_display, z_display, bx_display, by_display, bz_display, opacity = 0.1)
+    quiver=mlab.quiver3d(x_display, y_display, z_display, bx_display, by_display, bz_display, opacity = 0.01)
     mlab.vectorbar(quiver, orientation='vertical')
 
 def display_difference_quiver(grid1, grid2, display_every_n_point=1):
@@ -417,7 +406,7 @@ if __name__ =="__main__":
     grid_positions, dx, dy, dz=load_grid(grid_calculation_function=uniform_grid)
     # grid_positions, dx, dy, dz=load_grid(grid_calculation_function=y_axis_grid)
     print(grid_positions)
-    grid_B=load_field(field_generation_function=biot_savart_field, N_wires=6, r_wires=r_wires, N=N)
+    grid_B=load_field(field_generation_function=exact_ramp_field_grid)
     # grid_exact = exact_single_wire_field_grid(N=N)
     # grid_exact = load_field(field_generation_function=exact_single_wire_field_grid)
     # scales=[]
@@ -442,16 +431,28 @@ if __name__ =="__main__":
     print("dt = " + str(dt))
     print("dt cyclotron = " + str(dt_cyclotron))
     dt = dt_cyclotron
-    dt=1e-12
-
-    particle_loop(pusher_function=RK4_step, field_calculation_function = field_interpolation,
-        mode_name = "RK4", N_particles = 1, N_iterations=1e7)
+    dt=1e-11
+    seed=4
+    iters=1e7
+    N_particles=1
+    exact_path = particle_loop(pusher_function=boris_step, field_calculation_function = exact_ramp_field,
+        mode_name = "boris_exact", N_particles = N_particles, N_iterations=iters,seed=seed)
+    N_interpolation_list=range(2,50)
+    variances=[]
+    for N_interpolation in N_interpolation_list:
+        test_path=particle_loop(pusher_function=boris_step, field_calculation_function = field_interpolation,
+            mode_name = "boris_interpolation", N_particles = N_particles, N_iterations=iters,seed=seed,
+            N_interpolation=N_interpolation)
+        variance = compare_trajectories(exact_path, test_path)
+        variances.append(variance)
     print("Finished calculation.")
+    plt.plot(N_interpolation_list, variances)
+    plt.show()
 
-    display_wires(N_wires=1, r_wires=0)
-    display_quiver()
-    display_particles(mode_name="boris", colormap="Blues")
-    display_particles(mode_name="RK4", colormap="Reds")
+    # display_wires(N_wires=1, r_wires=0)
+    # display_quiver()
+    # display_particles(mode_name="boris_interpolation", colormap="Blues")
+    # display_particles(mode_name="boris_exact", colormap="Reds")
 
-    print("Finished display")
-    mlab.show()
+    # print("Finished display")
+    # mlab.show()
