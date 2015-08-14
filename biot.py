@@ -8,9 +8,11 @@ import scipy.spatial
 import sys
 import shutil
 
+#Grid parameters
 NGRID=50
 NZGRID=NGRID
 
+#Region parameters
 xmax=0.016
 xmin=-xmax
 ymax=xmax
@@ -18,28 +20,29 @@ ymin=-ymax
 zmax=0.1/2.
 zmin=-zmax
 
+#Wire parameters for Biot-Savart
 N_wires=1
 r_wires = 0.008
 wire_current=1.e6/N_wires
-N=NGRID*12.5 #wire segments
-display_every_n_point=1
+N=int(NGRID*12.5) #wire segments
 low_cutoff_distance=0.0000000000001
 
+display_every_n_point=1 #display every n point vectors of magnetic field
+
+#Simulation parameters
 N_iterations=100000
 N_particles=10
-N_interpolation=25
+N_interpolation=8
+velocity_scaling=1e6 #for random selection of initial velocity
+dt=0.01/velocity_scaling
+
+#Physical constants. All units in SI
 electron_charge = -1.60217657e-19
 electron_mass = 9.10938291e-31
-
 deuteron_mass = 3.343583719e-27
-
-#3 keV
-#thermal velocity?
-
 qmratio=-electron_charge/deuteron_mass
-velocity_scaling=1e6
-dt=0.01/velocity_scaling
 MU=4e-7*np.pi
+
 
 ######Folder name management#################
 number_of_arguments = len(sys.argv)
@@ -68,7 +71,7 @@ def nonuniform_grid():
                 grid_positions[row, 2] = vz
     return grid_positions, dx, dy, dz
 
-def uniform_grid():             #doesn't quite work yet
+def uniform_grid():
     dx = dy = (ymax - ymin)/NGRID
     dz = (zmax-zmin)/NZGRID
     step_size=min([dx, dz])
@@ -144,7 +147,6 @@ def biot_savart_field(N_wires=6, r_wires=0.08, wire_current=1e6, mode_name="", N
     print("Calculating field via Biot Savart")
     grid_B=np.zeros_like(grid_positions)
     for i in range(N_wires):
-        # print("wire " +str(i))
         angle = 2*i*np.pi/N_wires
         x_wire_pos=r_wires*np.cos(angle)
         y_wire_pos=r_wires*np.sin(angle)
@@ -156,14 +158,9 @@ def biot_savart_field(N_wires=6, r_wires=0.08, wire_current=1e6, mode_name="", N
         wire_gradient = np.gradient(wire)[0]
         wire_length = np.sqrt(np.sum(wire_gradient**2, axis=1))
         wire_gradient *= np.vstack((wire_length, wire_length, wire_length)).T
-        # wire_gradient[:,0] /= dx
-        # wire_gradient[:,1] /= dy
-        # wire_gradient[:,2] /= dz
         for index, wire_segment in enumerate(wire):
-            # print("wire segment", wire_segment)
-            # print("wire_gradient", wire_gradient[index,:])
-            # print("wire length",wire_length[index])
-            wire_segment_length = wire_gradient[index,:]#*wire_length[index]
+
+            wire_segment_length = wire_gradient[index,:]
             rprime=(grid_positions-wire_segment)
             distances = np.sum(rprime**2, axis=1)**(3./2.)
             denominator = np.vstack((distances, distances, distances)).T
@@ -174,8 +171,7 @@ def biot_savart_field(N_wires=6, r_wires=0.08, wire_current=1e6, mode_name="", N
                 differential[low_cutoff_indices, :] = 0
             grid_B += differential*MU/np.pi/(4)
         grid_B[np.isinf(grid_B)] = np.nan
-        # mlab.plot3d(x_wire,y_wire,z_wire, tube_radius=None)
-    grid_B*=N*10#np.pi**2
+    grid_B*=N*10 # a correction factor to get the proper result - no idea why!
     return grid_B
 
 def load_field(field_generation_function, field_mode_name="", grid_mode_name="", N_wires=N_wires, r_wires=r_wires, N=N):
@@ -192,7 +188,7 @@ def load_field(field_generation_function, field_mode_name="", grid_mode_name="",
 
 def field_interpolation(r, N_interpolation=N_interpolation):
     distances, indices = mytree.query(r, k=N_interpolation)
-    weights =1./(distances)**20
+    weights =1./(distances)**8
     sum_weights=np.sum(weights)
     local_B=grid_B[indices]
 
@@ -331,7 +327,6 @@ def compare_trajectories(exact_trajectory, trial_trajectory):
 
 #####################Visualization
 
-
 def display_wires(N_wires=1, r_wires=0):
     print("Loading wires")
     for i in range(N_wires):
@@ -373,14 +368,12 @@ def display_difference_quiver(grid1, grid2, display_every_n_point=1):
     bz_display=difference[::display_every_n_point,2]
     difffig = mlab.figure()
     diffplot=mlab.quiver3d(x_display, y_display, z_display, bx_display, by_display, bz_display, opacity = 0.2, figure=difffig)
-    # length = int(len(difference)/2)
-    # for i in range(length, length+100):
-    #     print(str(grid1[i,:]) + str(grid2[i,:]) + str(difference[i,:]))
     mlab.quiver3d(x_display, y_display, z_display, grid2[:,0], grid2[:,1], grid2[:,2], opacity = 0.2, figure=grid2fig)
     mlab.colorbar(diffplot)
     mlab.colorbar(grid1plot)
     mlab.colorbar(grid2plot)
     return scale
+
 def display_particles(mode_name="", colormap="Spectral", all_colorbars=False):
     print("Displaying particles from mode " + mode_name)
     particle_i=0
@@ -404,9 +397,10 @@ def display_particles(mode_name="", colormap="Spectral", all_colorbars=False):
 
 if __name__ =="__main__":
     grid_positions, dx, dy, dz=load_grid(grid_calculation_function=uniform_grid)
-    # grid_positions, dx, dy, dz=load_grid(grid_calculation_function=y_axis_grid)
     print(grid_positions)
     grid_B=load_field(field_generation_function=exact_ramp_field_grid)
+
+    #####Comparing fields calculated via exact result and biot savart for single wire case
     # grid_exact = exact_single_wire_field_grid(N=N)
     # grid_exact = load_field(field_generation_function=exact_single_wire_field_grid)
     # scales=[]
@@ -419,7 +413,7 @@ if __name__ =="__main__":
     # plt.plot(N_list, scales)
     # plt.show()
 
-
+    #Generate a tree for indexing
     mytree = scipy.spatial.cKDTree(grid_positions)
 
     #############Set time############################33
@@ -434,25 +428,27 @@ if __name__ =="__main__":
     dt=1e-11
     seed=4
     iters=1e7
-    N_particles=1
+    N_particles=10
+
+    
     exact_path = particle_loop(pusher_function=boris_step, field_calculation_function = exact_ramp_field,
         mode_name = "boris_exact", N_particles = N_particles, N_iterations=iters,seed=seed)
-    N_interpolation_list=range(2,50)
-    variances=[]
-    for N_interpolation in N_interpolation_list:
-        test_path=particle_loop(pusher_function=boris_step, field_calculation_function = field_interpolation,
+    # N_interpolation_list=range(2,50)
+    # variances=[]
+    # for N_interpolation in N_interpolation_list:
+    test_path=particle_loop(pusher_function=boris_step, field_calculation_function = field_interpolation,
             mode_name = "boris_interpolation", N_particles = N_particles, N_iterations=iters,seed=seed,
             N_interpolation=N_interpolation)
-        variance = compare_trajectories(exact_path, test_path)
-        variances.append(variance)
+        # variance = compare_trajectories(exact_path, test_path)
+        # variances.append(variance)
     print("Finished calculation.")
-    plt.plot(N_interpolation_list, variances)
-    plt.show()
+    # plt.plot(N_interpolation_list, variances)
+    # plt.show()
 
     # display_wires(N_wires=1, r_wires=0)
-    # display_quiver()
-    # display_particles(mode_name="boris_interpolation", colormap="Blues")
-    # display_particles(mode_name="boris_exact", colormap="Reds")
+    display_quiver()
+    display_particles(mode_name="boris_interpolation", colormap="Blues")
+    display_particles(mode_name="boris_exact", colormap="Reds")
 
     # print("Finished display")
-    # mlab.show()
+    mlab.show()
