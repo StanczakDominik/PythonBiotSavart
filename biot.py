@@ -374,6 +374,29 @@ def display_difference_quiver(grid1, grid2, display_every_n_point=1):
     mlab.colorbar(grid2plot)
     return scale
 
+def plot_energies(mode_name1, mode_name2):
+    print("Printing energies")
+    particle_i = 0
+    while True:
+        particle_file_name1=folder_name+mode_name1+str(particle_i)+"velocities.dat"
+        particle_file_name2=folder_name+mode_name2+str(particle_i)+"velocities.dat"
+        if(os.path.isfile(particle_file_name1) and os.path.isfile(particle_file_name2)):
+            energies1 = np.sum(np.loadtxt(particle_file_name1)**2, axis=1)
+            energies2 = np.sum(np.loadtxt(particle_file_name2)**2, axis=1)
+            plt.plot(energies1, label=("Particle " + str(particle_i) + " " + mode_name1))
+            plt.plot(energies2, label=("Particle " + str(particle_i) + " " + mode_name2))
+        else:
+            print("Failed to load particle " + str(particle_i))
+            break
+        particle_i+=1
+    plt.legend()
+    plt.grid()
+    plt.xlabel("Iterations")
+    plt.ylabel("Energy")
+    plt.savefig(folder_name+"Energies" + mode_name1 + mode_name2 + ".png")
+    plt.show()
+    plt.clf()
+
 def display_particles(mode_name="", colormap="Spectral", all_colorbars=False):
     print("Displaying particles from mode " + mode_name)
     particle_i=0
@@ -432,23 +455,23 @@ if __name__ =="__main__":
 
 
     exact_path = particle_loop(pusher_function=boris_step, field_calculation_function = exact_ramp_field,
-        mode_name = "boris_exact", N_particles = N_particles, N_iterations=iters,seed=seed)
+        mode_name = "boris_exact", N_particles = N_particles, N_iterations=iters,seed=seed, save_velocities=True)
     # N_interpolation_list=range(2,50)
     # variances=[]
     # for N_interpolation in N_interpolation_list:
-    test_path=particle_loop(pusher_function=boris_step, field_calculation_function = field_interpolation,
-            mode_name = "boris_interpolation", N_particles = N_particles, N_iterations=iters,seed=seed,
-            N_interpolation=N_interpolation)
+    test_path=particle_loop(pusher_function=RK4_step, field_calculation_function = exact_ramp_field,
+            mode_name = "RK4_exact", N_particles = N_particles, N_iterations=iters,seed=seed,
+            N_interpolation=N_interpolation, save_velocities=True)
         # variance = compare_trajectories(exact_path, test_path)
         # variances.append(variance)
     print("Finished calculation.")
     # plt.plot(N_interpolation_list, variances)
     # plt.show()
-
+    compare_trajectories(exact_path,test_path)
     # display_wires(N_wires=1, r_wires=0)
     display_quiver()
-    display_particles(mode_name="boris_interpolation", colormap="Blues")
-    display_particles(mode_name="boris_exact", colormap="Reds")
+    display_particles(mode_name="boris_exact", colormap="Blues")
+    display_particles(mode_name="RK4_exact", colormap="Reds")
 
     # print("Finished display")
     mlab.show()
