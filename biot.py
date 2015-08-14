@@ -237,8 +237,8 @@ def boris_step(r, v, dt, calculate_field, N_interpolation=N_interpolation):
     r=r+v*dt
     return r,v
 
-def RK4_step(r,v,dt, calculate_field):
-	field1 = calculate_field(r)
+def RK4_step(r,v,dt, calculate_field, N_interpolation=N_interpolation):
+	field1 = calculate_field(r, N_interpolation = N_interpolation)
 	k1v = qmratio*np.cross(v,field1)
 	k1r = v
 
@@ -430,7 +430,7 @@ if __name__ =="__main__":
     iters=1e7
     N_particles=10
 
-    
+
     exact_path = particle_loop(pusher_function=boris_step, field_calculation_function = exact_ramp_field,
         mode_name = "boris_exact", N_particles = N_particles, N_iterations=iters,seed=seed)
     # N_interpolation_list=range(2,50)
