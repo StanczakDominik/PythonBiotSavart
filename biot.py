@@ -30,7 +30,8 @@ low_cutoff_distance=0.0000000000001
 display_every_n_point=1 #display every n point vectors of magnetic field
 
 #Simulation parameters
-N_iterations=100000
+N_iterations=int(1e8)
+Dump_every_N_iterations=int(1e6)
 N_particles=10
 N_interpolation=8
 velocity_scaling=1e6 #for random selection of initial velocity
@@ -54,6 +55,22 @@ else:
         os.mkdir(folder_name)
     shutil.copy2('biot.py',folder_name)
     shutil.copy2('plot.py',folder_name)
+
+def append_to_file(file, array):
+    # print("Array begins with")
+    # print(array[:3,:])
+    # print("Array ends with")
+    # print(array[-3:,:])
+
+    length = len(array)
+    with open(file, 'ab') as file:
+        np.savetxt(file, array)
+    # print("Successfully appended an array of length %d" % length)
+def load_binary_file(file):
+    with open(file, 'rb') as f:
+        returned_array = np.loadtxt(file)
+    return returned_array
+
 
 #########Grid functions####################
 
@@ -273,8 +290,8 @@ def particle_loop(pusher_function, field_calculation_function, mode_name, N_part
     N_particles=int(N_particles)
     print("Beginning push...")
     for particle_i in range(N_particles):
-        positions=np.zeros((N_iterations,3))
-        if save_velocities:velocities=np.zeros((N_iterations,3))
+        positions=np.zeros((Dump_every_N_iterations,3))
+        if save_velocities:velocities=np.zeros((Dump_every_N_iterations,3))
         r=np.random.rand(3)
         r[:2]=r[:2]*(xmax-xmin)+xmin
         r[2] = r[2]*(zmax-zmin)+zmin
@@ -287,20 +304,42 @@ def particle_loop(pusher_function, field_calculation_function, mode_name, N_part
         print(v)
         if (pusher_function==boris_step):
             dummy, v = pusher_function(r,v,-dt/2., field_calculation_function)
-        for i in range(N_iterations):
+        ended_on_region_exit=False
+        for i in xrange(N_iterations):
+            #Enter loop
+            time_index=i%Dump_every_N_iterations
+            #Push position and velocity
             r,v = pusher_function(r,v,dt, field_calculation_function, N_interpolation=N_interpolation)
+
+            #Check for particle leaving region
             x_iter, y_iter, z_iter = r
             if x_iter > xmax or x_iter < xmin or y_iter > ymax or y_iter < ymin or z_iter > zmax or z_iter < zmin:
                 print("Ran out of the area at i=" + str(i))
-                positions=positions[:i,:]
-                if save_velocities: velocities=velocities[i:,:]
-                break
-            else:
-                positions[i,:]=r
-                if save_velocities: velocities[i,:]=v
-        #TODO: make it only save every n interations in the first place to lower running memory reqs
-        np.savetxt(folder_name+mode_name+str(particle_i)+"positions.dat", positions[::save_every_n_iterations])
-        if save_velocities: np.savetxt(folder_name+mode_name+str(particle_i)+"velocities.dat", velocities[::save_every_n_iterations])
+                #Trim the array to remove unnecessary, empty entries
+                positions=positions[:time_index,:]
+                #Save the trimmed array
+                append_to_file(folder_name+mode_name+str(particle_i)+"positions.dat", positions)
+                if save_velocities:
+                    velocities=velocities[:time_index,:]
+                    append_to_file(folder_name+mode_name+str(particle_i)+"velocities.dat", velocities)
+
+                ended_on_region_exit = True #prevent program from saving position after leaving the loop
+                break #quit the for loop
+            else: #particle has not yet left the region
+                if i and not time_index:
+                    print("Data dump #%d out of %d" %(i//Dump_every_N_iterations, N_iterations//Dump_every_N_iterations))
+                    append_to_file(folder_name+mode_name+str(particle_i)+"positions.dat", positions)
+                    positions=np.zeros_like(positions)
+                    if save_velocities:
+                        append_to_file(folder_name+mode_name+str(particle_i)+"velocities.dat", velocities)
+                        velocities=np.zeros_like(velocities)
+                positions[time_index,:]=r
+                if save_velocities:
+                    velocities[time_index,:]=v
+        if not ended_on_region_exit:
+            append_to_file(folder_name+mode_name+str(particle_i)+"positions.dat", positions)
+            if save_velocities:
+                append_to_file(folder_name+mode_name+str(particle_i)+"velocities.dat", velocities)
     print("Push finished.")
     return positions
 
@@ -404,6 +443,7 @@ def display_particles(mode_name="", colormap="Spectral", all_colorbars=False):
         particle_file_name=folder_name+mode_name+str(particle_i)+"positions.dat"
         if(os.path.isfile(particle_file_name)):
             positions=np.loadtxt(particle_file_name)
+            print(positions[-3:,:])
             x_positions=positions[:,0]
             y_positions=positions[:,1]
             z_positions=positions[:,2]
@@ -448,30 +488,31 @@ if __name__ =="__main__":
     print("dt = " + str(dt))
     print("dt cyclotron = " + str(dt_cyclotron))
     dt = dt_cyclotron
-    dt=1e-11
+    dt=1e-13
     seed=4
-    iters=1e7
-    N_particles=10
+    iters=N_iterations
+    N_particles=1
 
 
     exact_path = particle_loop(pusher_function=boris_step, field_calculation_function = exact_ramp_field,
-        mode_name = "boris_exact", N_particles = N_particles, N_iterations=iters,seed=seed, save_velocities=True)
+        mode_name = "boris_exact", N_particles = N_particles, N_iterations=iters,seed=seed, save_velocities=False)
     # N_interpolation_list=range(2,50)
     # variances=[]
     # for N_interpolation in N_interpolation_list:
-    test_path=particle_loop(pusher_function=RK4_step, field_calculation_function = exact_ramp_field,
-            mode_name = "RK4_exact", N_particles = N_particles, N_iterations=iters,seed=seed,
-            N_interpolation=N_interpolation, save_velocities=True)
+    # test_path=particle_loop(pusher_function=RK4_step, field_calculation_function = exact_ramp_field,
+    #         mode_name = "RK4_exact", N_particles = N_particles, N_iterations=iters,seed=seed,
+    #         N_interpolation=N_interpolation, save_velocities=True)
         # variance = compare_trajectories(exact_path, test_path)
         # variances.append(variance)
     print("Finished calculation.")
     # plt.plot(N_interpolation_list, variances)
     # plt.show()
-    compare_trajectories(exact_path,test_path)
+    # compare_trajectories(exact_path,test_path)
     # display_wires(N_wires=1, r_wires=0)
     display_quiver()
     display_particles(mode_name="boris_exact", colormap="Blues")
-    display_particles(mode_name="RK4_exact", colormap="Reds")
+    # display_particles(mode_name="RK4_exact", colormap="Reds")
 
     # print("Finished display")
     mlab.show()
+    # plot_energies("boris_exact", "RK4_exact")
