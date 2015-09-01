@@ -56,14 +56,17 @@ else:
     shutil.copy2('biot.py',folder_name)
     shutil.copy2('plot.py',folder_name)
 
-def append_to_file(file, array):
+def append_to_file(file, array, continue_run=False):
     # print("Array begins with")
     # print(array[:3,:])
     # print("Array ends with")
     # print(array[-3:,:])
-
+    if continue_run:
+        save_setting = 'ab'
+    else:
+        save_setting= 'wb'
     length = len(array)
-    with open(file, 'ab') as file:
+    with open(file, save_setting) as file:
         np.savetxt(file, array)
     # print("Successfully appended an array of length %d" % length)
 def load_binary_file(file):
@@ -121,7 +124,7 @@ def load_grid(grid_calculation_function, mode_name=""):
     return grid_positions, dx, dy, dz
 
 #########Magnetic field functions#########
-def exact_ramp_field_grid(N_wires = 1, r_wires=0,mode_name="", N=N):
+def exact_ramp_field_grid(grid_positions, N_wires = 1, r_wires=0,mode_name="", N=N):
     print("Calculating field via exact linear ramp formula")
     B0 = MU*wire_current/5./np.pi
     grid_B = np.zeros_like(grid_positions)
@@ -142,7 +145,7 @@ def exact_ramp_field_grid(N_wires = 1, r_wires=0,mode_name="", N=N):
     grid_B[np.isnan(grid_B)] = 0
     return grid_B
 
-def exact_single_wire_field_grid(N_wires = 1, r_wires=0,mode_name="", N=N):
+def exact_single_wire_field_grid(grid_positions, N_wires = 1, r_wires=0,mode_name="", N=N):
     print("Calculating field via exact single wire ramp formula")
     B0 = MU*wire_current/2./np.pi
     grid_B = np.zeros_like(grid_positions)
@@ -160,7 +163,7 @@ def exact_single_wire_field_grid(N_wires = 1, r_wires=0,mode_name="", N=N):
     return grid_B
 
 
-def biot_savart_field(N_wires=6, r_wires=0.08, wire_current=1e6, mode_name="", N=N):
+def biot_savart_field_grid(grid_positions, N_wires=6, r_wires=0.08, wire_current=1e6, mode_name="", N=N):
     print("Calculating field via Biot Savart")
     grid_B=np.zeros_like(grid_positions)
     for i in range(N_wires):
@@ -191,12 +194,12 @@ def biot_savart_field(N_wires=6, r_wires=0.08, wire_current=1e6, mode_name="", N
     grid_B*=N*10 # a correction factor to get the proper result - no idea why!
     return grid_B
 
-def load_field(field_generation_function, field_mode_name="", grid_mode_name="", N_wires=N_wires, r_wires=r_wires, N=N):
+def load_field(field_generation_function, grid_positions, field_mode_name="", grid_mode_name="", N_wires=N_wires, r_wires=r_wires, N=N):
     if(os.path.isfile(folder_name+grid_mode_name+field_mode_name+"grid_B.dat")):
         grid_B=np.loadtxt(folder_name+grid_mode_name+field_mode_name+"grid_B.dat")
         print("Loaded grid fields")
     else:
-        grid_B=field_generation_function(N_wires=N_wires, r_wires=r_wires, mode_name=field_mode_name)
+        grid_B=field_generation_function(N_wires=N_wires, r_wires=r_wires, mode_name=field_mode_name, grid_positions=grid_positions)
         np.savetxt(folder_name+grid_mode_name+field_mode_name+"grid_B.dat", grid_B)
         print("Saved grid fields")
     return grid_B
@@ -284,11 +287,24 @@ def RK4_step(r,v,dt, calculate_field, N_interpolation=N_interpolation):
 
 def particle_loop(pusher_function, field_calculation_function, mode_name, N_particles,
         N_iterations, save_every_n_iterations=10, save_velocities=False, seed=1,
-        N_interpolation=N_interpolation):
+        N_interpolation=N_interpolation, continue_run=False, dt=dt):
+    print("""
+
+    Running simulation of mode %s with %d particles.
+    Pusher algorithm is %s.
+    Field is calculated using %s.
+    %d iterations with timestep %e, %d particles.
+    Saves data every %d iterations. Random seed is %d.""" %(mode_name, N_particles,
+     pusher_function.__name__,
+     field_calculation_function.__name__,
+     N_iterations, dt, N_particles,
+     save_every_n_iterations, seed))
+    if continue_run: print("    This is a continued run.")
+    if save_velocities: print("    Velocities are saved.")
+    print("\n")
     np.random.seed(seed)
     N_iterations=int(N_iterations)
     N_particles=int(N_particles)
-    print("Beginning push...")
     for particle_i in range(N_particles):
         positions=np.zeros((Dump_every_N_iterations,3))
         if save_velocities:velocities=np.zeros((Dump_every_N_iterations,3))
@@ -321,25 +337,25 @@ def particle_loop(pusher_function, field_calculation_function, mode_name, N_part
                 append_to_file(folder_name+mode_name+str(particle_i)+"positions.dat", positions)
                 if save_velocities:
                     velocities=velocities[:time_index,:]
-                    append_to_file(folder_name+mode_name+str(particle_i)+"velocities.dat", velocities)
+                    append_to_file(folder_name+mode_name+str(particle_i)+"velocities.dat", velocities, continue_run=continue_run)
 
                 ended_on_region_exit = True #prevent program from saving position after leaving the loop
                 break #quit the for loop
             else: #particle has not yet left the region
                 if i and not time_index:
                     print("Data dump #%d out of %d" %(i//Dump_every_N_iterations, N_iterations//Dump_every_N_iterations))
-                    append_to_file(folder_name+mode_name+str(particle_i)+"positions.dat", positions)
+                    append_to_file(folder_name+mode_name+str(particle_i)+"positions.dat", positions[::save_every_n_iterations], continue_run=continue_run)
                     positions=np.zeros_like(positions)
                     if save_velocities:
-                        append_to_file(folder_name+mode_name+str(particle_i)+"velocities.dat", velocities)
+                        append_to_file(folder_name+mode_name+str(particle_i)+"velocities.dat", velocities[::save_every_n_iterations], continue_run=continue_run)
                         velocities=np.zeros_like(velocities)
                 positions[time_index,:]=r
                 if save_velocities:
                     velocities[time_index,:]=v
         if not ended_on_region_exit:
-            append_to_file(folder_name+mode_name+str(particle_i)+"positions.dat", positions)
+            append_to_file(folder_name+mode_name+str(particle_i)+"positions.dat", positions, continue_run=continue_run)
             if save_velocities:
-                append_to_file(folder_name+mode_name+str(particle_i)+"velocities.dat", velocities)
+                append_to_file(folder_name+mode_name+str(particle_i)+"velocities.dat", velocities, continue_run=continue_run)
     print("Push finished.")
     return positions
 
@@ -424,17 +440,17 @@ def plot_energies(mode_name1, mode_name2):
             energies2 = np.sum(np.loadtxt(particle_file_name2)**2, axis=1)
             plt.plot(energies1, label=("Particle " + str(particle_i) + " " + mode_name1))
             plt.plot(energies2, label=("Particle " + str(particle_i) + " " + mode_name2))
+            particle_i+=1
+            plt.legend()
+            plt.grid()
+            plt.xlabel("Iterations")
+            plt.ylabel("Energy")
+            plt.savefig(folder_name+"Energies" + mode_name1 + mode_name2 + ".png")
+            plt.show()
+            plt.clf()
         else:
             print("Failed to load particle " + str(particle_i))
             break
-        particle_i+=1
-    plt.legend()
-    plt.grid()
-    plt.xlabel("Iterations")
-    plt.ylabel("Energy")
-    plt.savefig(folder_name+"Energies" + mode_name1 + mode_name2 + ".png")
-    plt.show()
-    plt.clf()
 
 def display_particles(mode_name="", colormap="Spectral", all_colorbars=False):
     print("Displaying particles from mode " + mode_name)
@@ -458,61 +474,5 @@ def display_particles(mode_name="", colormap="Spectral", all_colorbars=False):
     if not all_colorbars: colorbar=mlab.colorbar(plot)
     print("Loading particle display finished")
 
-if __name__ =="__main__":
-    grid_positions, dx, dy, dz=load_grid(grid_calculation_function=uniform_grid)
-    print(grid_positions)
-    grid_B=load_field(field_generation_function=exact_ramp_field_grid)
-
-    #####Comparing fields calculated via exact result and biot savart for single wire case
-    # grid_exact = exact_single_wire_field_grid(N=N)
-    # grid_exact = load_field(field_generation_function=exact_single_wire_field_grid)
-    # scales=[]
-    # N_list=[5, 10, 15, 20, 25, 30, 40, 50, 60, 100, 125, 150, 175, 200, 300, 400, 500, 600, 700, 750, 800, 900, 1000]
-    # for N in N_list:
-    #     print N
-    #     scales.append(display_difference_quiver(grid_exact, biot_savart_field(N=N, N_wires = 1, r_wires=0.)))
-    # display_difference_quiver(grid_B, grid_exact)
-    # print("Biot savart - niebieskie, exact - czerwone")
-    # plt.plot(N_list, scales)
-    # plt.show()
-
-    #Generate a tree for indexing
-    mytree = scipy.spatial.cKDTree(grid_positions)
-
-    #############Set time############################33
-    B_magnitude = np.sqrt(np.sum(grid_B**2, axis=1))
-    print("Maximum field magnitude = " + str(np.max(B_magnitude)))
-    # exact_B_magnitude = np.sqrt(np.sum(grid_exact   **2, axis=1))
-    # print("Maximum exact field magnitude = " + str(np.max(exact_B_magnitude)))
-    dt_cyclotron = np.abs(0.1*2*np.pi/np.max(B_magnitude)/qmratio)
-    print("dt = " + str(dt))
-    print("dt cyclotron = " + str(dt_cyclotron))
-    dt = dt_cyclotron
-    dt=1e-13
-    seed=4
-    iters=N_iterations
-    N_particles=1
-
-
-    exact_path = particle_loop(pusher_function=boris_step, field_calculation_function = exact_ramp_field,
-        mode_name = "boris_exact", N_particles = N_particles, N_iterations=iters,seed=seed, save_velocities=False)
-    # N_interpolation_list=range(2,50)
-    # variances=[]
-    # for N_interpolation in N_interpolation_list:
-    # test_path=particle_loop(pusher_function=RK4_step, field_calculation_function = exact_ramp_field,
-    #         mode_name = "RK4_exact", N_particles = N_particles, N_iterations=iters,seed=seed,
-    #         N_interpolation=N_interpolation, save_velocities=True)
-        # variance = compare_trajectories(exact_path, test_path)
-        # variances.append(variance)
-    print("Finished calculation.")
-    # plt.plot(N_interpolation_list, variances)
-    # plt.show()
-    # compare_trajectories(exact_path,test_path)
-    # display_wires(N_wires=1, r_wires=0)
-    display_quiver()
-    display_particles(mode_name="boris_exact", colormap="Blues")
-    # display_particles(mode_name="RK4_exact", colormap="Reds")
-
-    # print("Finished display")
-    mlab.show()
-    # plot_energies("boris_exact", "RK4_exact")
+# if __name__ =="__main__":
+#     pass
