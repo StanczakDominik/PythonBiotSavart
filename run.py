@@ -26,16 +26,17 @@ print("dt cyclotron = " + str(dt_cyclotron))
 dt=1e-13
 seed=1
 iters=N_iterations
-
-exact_path = particle_loop(pusher_function=boris_step, field_calculation_function = exact_ramp_field,
-    mode_name = "boris_exact", N_particles = N_particles, N_iterations=iters,seed=seed, save_velocities=True, continue_run=False, dt=1e-13)
-exact_RK4_path = particle_loop(pusher_function=RK4_step, field_calculation_function = exact_ramp_field,
-    mode_name = "RK4_exact", N_particles = N_particles, N_iterations=iters/10,seed=seed, save_velocities=True, continue_run=False, dt=1e-12)
+colormaps={0.1:"Blues", 1.:"Greens", 10.:"Reds"}
+# colormaps = {0.1:"Blues", 0.5:"Reds", 1.:"Greens",2.:"Oranges",10.:"Purples"}
+for n in colormaps.keys():
+    exact_path = particle_loop(pusher_function=RK4_step, field_calculation_function = exact_ramp_field,
+        mode_name = "RK4_exact" + str(n), N_particles = N_particles, N_iterations=int(N_iterations*n),seed=seed,
+        save_velocities=True, continue_run=False, dt=dt/n)
 print("Finished calculation.")
 display_quiver()
-display_particles(mode_name="boris_exact", colormap="Blues")
-display_particles(mode_name="RK4_exact", colormap="Reds")
+for n in colormaps.keys():
+    display_particles(mode_name="RK4_exact" + str(n), colormap=colormaps[n])
 
-# print("Finished display")
+print("Finished display")
 mlab.show()
 plot_energies("boris_exact", "RK4_exact")

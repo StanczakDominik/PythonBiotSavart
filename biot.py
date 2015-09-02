@@ -56,17 +56,13 @@ else:
     shutil.copy2('biot.py',folder_name)
     shutil.copy2('plot.py',folder_name)
 
-def append_to_file(file, array, continue_run=False):
+def append_to_file(file, array):
     # print("Array begins with")
     # print(array[:3,:])
     # print("Array ends with")
     # print(array[-3:,:])
-    if continue_run:
-        save_setting = 'ab'
-    else:
-        save_setting= 'wb'
-    length = len(array)
-    with open(file, save_setting) as file:
+    # length = len(array)
+    with open(file, 'ab') as file:
         np.savetxt(file, array)
     # print("Successfully appended an array of length %d" % length)
 def load_binary_file(file):
@@ -326,7 +322,6 @@ def particle_loop(pusher_function, field_calculation_function, mode_name, N_part
             time_index=i%Dump_every_N_iterations
             #Push position and velocity
             r,v = pusher_function(r,v,dt, field_calculation_function, N_interpolation=N_interpolation)
-
             #Check for particle leaving region
             x_iter, y_iter, z_iter = r
             if x_iter > xmax or x_iter < xmin or y_iter > ymax or y_iter < ymin or z_iter > zmax or z_iter < zmin:
@@ -337,25 +332,26 @@ def particle_loop(pusher_function, field_calculation_function, mode_name, N_part
                 append_to_file(folder_name+mode_name+str(particle_i)+"positions.dat", positions)
                 if save_velocities:
                     velocities=velocities[:time_index,:]
-                    append_to_file(folder_name+mode_name+str(particle_i)+"velocities.dat", velocities, continue_run=continue_run)
-
+                    append_to_file(folder_name+mode_name+str(particle_i)+"velocities.dat", velocities)
                 ended_on_region_exit = True #prevent program from saving position after leaving the loop
                 break #quit the for loop
             else: #particle has not yet left the region
                 if i and not time_index:
                     print("Data dump #%d out of %d" %(i//Dump_every_N_iterations, N_iterations//Dump_every_N_iterations))
-                    append_to_file(folder_name+mode_name+str(particle_i)+"positions.dat", positions[::save_every_n_iterations], continue_run=continue_run)
+                    append_to_file(folder_name+mode_name+str(particle_i)+"positions.dat", positions[::save_every_n_iterations])
                     positions=np.zeros_like(positions)
                     if save_velocities:
-                        append_to_file(folder_name+mode_name+str(particle_i)+"velocities.dat", velocities[::save_every_n_iterations], continue_run=continue_run)
+                        append_to_file(folder_name+mode_name+str(particle_i)+"velocities.dat", velocities[::save_every_n_iterations])
                         velocities=np.zeros_like(velocities)
                 positions[time_index,:]=r
                 if save_velocities:
                     velocities[time_index,:]=v
         if not ended_on_region_exit:
-            append_to_file(folder_name+mode_name+str(particle_i)+"positions.dat", positions, continue_run=continue_run)
+            positions=positions[:time_index,:]
+            append_to_file(folder_name+mode_name+str(particle_i)+"positions.dat", positions)
             if save_velocities:
-                append_to_file(folder_name+mode_name+str(particle_i)+"velocities.dat", velocities, continue_run=continue_run)
+                velocities=velocities[:time_index,:]
+                append_to_file(folder_name+mode_name+str(particle_i)+"velocities.dat", velocities)
     print("Push finished.")
     return positions
 
@@ -473,6 +469,7 @@ def display_particles(mode_name="", colormap="Spectral", all_colorbars=False):
         if all_colorbars: mlab.colorbar(plot)
     if not all_colorbars: colorbar=mlab.colorbar(plot)
     print("Loading particle display finished")
+    return positions
 
 # if __name__ =="__main__":
 #     pass
