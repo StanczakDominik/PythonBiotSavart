@@ -242,15 +242,40 @@ def exact_single_wire_field(r, N_interpolation = N_interpolation):
     B[np.isnan(B)] = 0
     return B
 
+def test_z_field(r, N_interpolation = N_interpolation):
+    B = np.array([0.,0.,1.])
+    return B
+
 ############Particle pushing algorithms
 def boris_step(r, v, dt, calculate_field, N_interpolation=N_interpolation):
+    debug = False
+    if debug:
+        print("Calculating particle at " + str(r) + " with velocity " + str(v) +
+        ", dt is %f" % dt)
     field = calculate_field(r, N_interpolation = N_interpolation)
+    if debug:
+        print ("Field is " + str(field))
     t = qmratio*field*dt/2.
+    if debug:
+        print ("t is " + str(t))
     vprime = v + np.cross(v,t)
+    if debug:
+        print ("vprime is " +str(vprime))
     s = 2*t/(1.+np.sum(t*t))
-    v = v + np.cross(vprime,s)
-    r+=v*dt
-    r=r+v*dt
+    if debug:
+        print ("s is " + str(s))
+    dv = np.cross(vprime,s)
+    if debug:
+        print ("dv is " + str(dv))
+    v += dv
+    if debug:
+        print ("v is " + str(v))
+    dr=v*dt
+    r+=dr
+    if debug:
+        print ("dr is " + str(dr))
+        print ("r is " + str(r))
+        input()
     return r,v
 
 def RK4_step(r,v,dt, calculate_field, N_interpolation=N_interpolation):
@@ -283,7 +308,7 @@ def RK4_step(r,v,dt, calculate_field, N_interpolation=N_interpolation):
 
 def particle_loop(pusher_function, field_calculation_function, mode_name, N_particles,
         N_iterations, save_every_n_iterations=10, save_velocities=False, seed=1,
-        N_interpolation=N_interpolation, continue_run=False, dt=dt):
+        N_interpolation=N_interpolation, continue_run=False, dt=dt, preset_r=None, preset_v=None):
     print("""
 
     Running simulation of mode %s with %d particles.
@@ -302,15 +327,21 @@ def particle_loop(pusher_function, field_calculation_function, mode_name, N_part
     N_iterations=int(N_iterations)
     N_particles=int(N_particles)
     for particle_i in range(N_particles):
-        positions=np.zeros((Dump_every_N_iterations,3))
+        positions=np.empty((Dump_every_N_iterations,3))
         if save_velocities:velocities=np.zeros((Dump_every_N_iterations,3))
-        r=np.random.rand(3)
-        r[:2]=r[:2]*(xmax-xmin)+xmin
-        r[2] = r[2]*(zmax-zmin)+zmin
-        r/=2.
-        v=np.zeros(3)
-        v[:2]=(np.random.rand(2)*(xmax-xmin)+xmin)*velocity_scaling
-        v[2]=(np.random.rand()*(zmax-zmin)+zmin)*velocity_scaling
+        if preset_r is not None and preset_v is not None:
+            #if there are preset initial conditions (N_particles should be 1 for this case)
+            r=preset_r
+            v=preset_r
+        else:
+            #generate initial conditions at random
+            r=np.random.rand(3)
+            r[:2]=r[:2]*(xmax-xmin)+xmin
+            r[2] = r[2]*(zmax-zmin)+zmin
+            r/=2.
+            v=np.zeros(3)
+            v[:2]=(np.random.rand(2)*(xmax-xmin)+xmin)*velocity_scaling
+            v[2]=(np.random.rand()*(zmax-zmin)+zmin)*velocity_scaling
         print("Moving particle " + str(particle_i))
         print(r)
         print(v)
@@ -399,7 +430,7 @@ def display_quiver(grid_mode_name="", field_mode_name="", display_every_n_point=
     bx_display=grid_B[::display_every_n_point,0]
     by_display=grid_B[::display_every_n_point,1]
     bz_display=grid_B[::display_every_n_point,2]
-    quiver=mlab.quiver3d(x_display, y_display, z_display, bx_display, by_display, bz_display, opacity = 0.01)
+    quiver=mlab.quiver3d(x_display, y_display, z_display, bx_display, by_display, bz_display, opacity=0.01)
     mlab.vectorbar(quiver, orientation='vertical')
 
 def display_difference_quiver(grid1, grid2, display_every_n_point=1):
@@ -470,6 +501,13 @@ def display_particles(mode_name="", colormap="Spectral", all_colorbars=False):
     if not all_colorbars: colorbar=mlab.colorbar(plot)
     print("Loading particle display finished")
     return positions
+
+def load_particle_trajectory(mode_name=""):
+    print("Loagin particle from mode " + mode_name)
+    particle_file_name=folder_name+mode_name+"0positions.dat"
+    if(os.path.isfile(particle_file_name)):
+        positions=np.loadtxt(particle_file_name)
+        return positions
 
 # if __name__ =="__main__":
 #     pass
