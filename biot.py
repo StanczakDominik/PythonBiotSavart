@@ -31,8 +31,6 @@ low_cutoff_distance=0.0000000000001
 display_every_n_point=1 #display every n point vectors of magnetic field
 
 #Simulation parameters
-N_iterations=int(1e8)
-Dump_every_N_iterations=int(1e6)
 N_particles=10
 N_interpolation=8
 velocity_scaling=1e6 #for random selection of initial velocity
@@ -323,27 +321,25 @@ def particle_loop(pusher_function, field_calculation_function, mode_name, N_part
     np.random.seed(seed)
     N_iterations=int(N_iterations)
     N_particles=int(N_particles)
+    Dump_every_N_iterations=N_iterations/100
     total_data_length = int(N_iterations/save_every_n_iterations)
-    for particle_i in range(N_particles):
-        with h5py.File(folder_name+mode_name+str(particle_i)+".hdf5", 'w') as particle_file:
+    with h5py.File(folder_name+mode_name+".hdf5", 'w') as loop_file:
+        loop_file.attrs['pusher_function'] = str(pusher_function)
+        loop_file.attrs['field_calculation_function'] = str(field_calculation_function)
+        loop_file.attrs['N_particles'] = N_particles
+        loop_file.attrs['N_iterations'] = N_iterations
+        loop_file.attrs['save_every_n_iterations'] = save_every_n_iterations
+        loop_file.attrs['seed'] = seed
+        loop_file.attrs['N_interpolation'] = N_interpolation
+        loop_file.attrs['continue_run'] = continue_run
+        loop_file.attrs['dt'] = dt
+        loop_file.attrs['preset_r'] = preset_r
+        loop_file.attrs['preset_v'] = preset_v
+        for particle_i in range(N_particles):
 
-            particle_file.attrs['pusher_function'] = str(pusher_function)
-            particle_file.attrs['field_calculation_function'] = str(field_calculation_function)
-            particle_file.attrs['N_particles'] = N_particles
-            particle_file.attrs['N_iterations'] = N_iterations
-            particle_file.attrs['save_every_n_iterations'] = save_every_n_iterations
-            particle_file.attrs['seed'] = seed
-            particle_file.attrs['N_interpolation'] = N_interpolation
-            particle_file.attrs['continue_run'] = continue_run
-            particle_file.attrs['dt'] = dt
-            particle_file.attrs['preset_r'] = preset_r
-            particle_file.attrs['preset_v'] = preset_v
+            positions_dataset = loop_file.create_dataset("%d/positions"%particle_i, (total_data_length, 3), dtype='float')
+            velocities_dataset = loop_file.create_dataset("%d/velocities"%particle_i, (total_data_length, 3), dtype='float')
 
-            positions_dataset = particle_file.create_dataset("positions", (total_data_length, 3), dtype='float')
-            velocities_dataset = particle_file.create_dataset("velocities", (total_data_length, 3), dtype='float')
-
-            positions=np.empty((Dump_every_N_iterations,3))
-            if save_velocities:velocities=np.zeros((Dump_every_N_iterations,3))
             if preset_r is not None and preset_v is not None:
                 #if there are preset initial conditions (N_particles should be 1 for this case)
                 r=preset_r
@@ -369,45 +365,23 @@ def particle_loop(pusher_function, field_calculation_function, mode_name, N_part
             ended_on_region_exit=False
             for i in xrange(N_iterations):
                 #Enter loop
-                time_index=i%Dump_every_N_iterations
+                if not i%Dump_every_N_iterations:
+                    print("Iteration %d out of %d"%(i,N_iterations))
+                counter_to_save_data=i%save_every_n_iterations
                 #Push position and velocity
                 r,v = pusher_function(r,v,dt, field_calculation_function, N_interpolation=N_interpolation)
                 #Check for particle leaving region
                 x_iter, y_iter, z_iter = r
+                if not counter_to_save_data:
+                    data_save_index=i//save_every_n_iterations
+                    positions_dataset[data_save_index]=r
+                    velocities_dataset[data_save_index]=v
                 if x_iter > xmax or x_iter < xmin or y_iter > ymax or y_iter < ymin or z_iter > zmax or z_iter < zmin:
                     print("Ran out of the area at i=" + str(i))
-                    #Trim the array to remove unnecessary, empty entries
-                    positions=positions[:time_index,:]
-                    #Save the trimmed array
-                    #TODO change here
-                    append_to_file(folder_name+mode_name+str(particle_i)+"positions.dat", positions)
-                    if save_velocities:
-                        velocities=velocities[:time_index,:]
-                        #TODO change here
-                        append_to_file(folder_name+mode_name+str(particle_i)+"velocities.dat", velocities)
                     ended_on_region_exit = True #prevent program from saving position after leaving the loop
                     break #quit the for loop
-                else: #particle has not yet left the region
-                    if i and not time_index:
-                        print("Data dump #%d out of %d" %(i//Dump_every_N_iterations, N_iterations//Dump_every_N_iterations))
-                        #TODO change here
-                        append_to_file(folder_name+mode_name+str(particle_i)+"positions.dat", positions[::save_every_n_iterations])
-                        positions=np.zeros_like(positions)
-                        #TODO change here
-                        append_to_file(folder_name+mode_name+str(particle_i)+"velocities.dat", velocities[::save_every_n_iterations])
-                        velocities=np.zeros_like(velocities)
-                    positions[time_index,:]=r
-                    if save_velocities:
-                        velocities[time_index,:]=v
-            if not ended_on_region_exit:
-                positions=positions[:time_index,:]
-                #TODO change here
-                append_to_file(folder_name+mode_name+str(particle_i)+"positions.dat", positions)
-                velocities=velocities[:time_index,:]
-                #TODO change here
-                append_to_file(folder_name+mode_name+str(particle_i)+"velocities.dat", velocities)
+
     print("Push finished.")
-    return positions
 
 ##########################Diagnostics
 
@@ -509,6 +483,17 @@ def display_difference_quiver(grid1, grid2, display_every_n_point=1):
     mlab.colorbar(grid1plot)
     mlab.colorbar(grid2plot)
     return scale
+
+def plot_xy_positions(*args):
+    for mode_name, style in args:
+        with h5py.File(folder_name+mode_name+".hdf5", "r") as f:
+            for particle in f:
+                x=particle['positions'][:,0]
+                y=particle['positions'][:,1]
+                plt.plot(x,y, style, label=mode_name)
+    plt.grid()
+    plt.legend()
+    plt.show()
 
 def plot_energies(mode_name1, mode_name2):
     print("Printing energies")
