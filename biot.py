@@ -7,6 +7,7 @@ import os.path
 import scipy.spatial
 import sys
 import shutil
+import h5py
 
 #Grid parameters
 NGRID=50
@@ -55,6 +56,7 @@ else:
         os.mkdir(folder_name)
     shutil.copy2('biot.py',folder_name)
     shutil.copy2('plot.py',folder_name)
+    shutil.copy2('plot.py',folder_name)
 
 def append_to_file(file, array):
     # print("Array begins with")
@@ -65,11 +67,6 @@ def append_to_file(file, array):
     with open(file, 'ab') as file:
         np.savetxt(file, array)
     # print("Successfully appended an array of length %d" % length)
-def load_binary_file(file):
-    with open(file, 'rb') as f:
-        returned_array = np.loadtxt(file)
-    return returned_array
-
 
 #########Grid functions####################
 
@@ -326,62 +323,88 @@ def particle_loop(pusher_function, field_calculation_function, mode_name, N_part
     np.random.seed(seed)
     N_iterations=int(N_iterations)
     N_particles=int(N_particles)
+    total_data_length = int(N_iterations/save_every_n_iterations)
     for particle_i in range(N_particles):
-        positions=np.empty((Dump_every_N_iterations,3))
-        if save_velocities:velocities=np.zeros((Dump_every_N_iterations,3))
-        if preset_r is not None and preset_v is not None:
-            #if there are preset initial conditions (N_particles should be 1 for this case)
-            r=preset_r
-            v=preset_r
-        else:
-            #generate initial conditions at random
-            r=np.random.rand(3)
-            r[:2]=r[:2]*(xmax-xmin)+xmin
-            r[2] = r[2]*(zmax-zmin)+zmin
-            r/=2.
-            v=np.zeros(3)
-            v[:2]=(np.random.rand(2)*(xmax-xmin)+xmin)*velocity_scaling
-            v[2]=(np.random.rand()*(zmax-zmin)+zmin)*velocity_scaling
-        print("Moving particle " + str(particle_i))
-        print(r)
-        print(v)
-        if (pusher_function==boris_step):
-            dummy, v = pusher_function(r,v,-dt/2., field_calculation_function)
-        ended_on_region_exit=False
-        for i in xrange(N_iterations):
-            #Enter loop
-            time_index=i%Dump_every_N_iterations
-            #Push position and velocity
-            r,v = pusher_function(r,v,dt, field_calculation_function, N_interpolation=N_interpolation)
-            #Check for particle leaving region
-            x_iter, y_iter, z_iter = r
-            if x_iter > xmax or x_iter < xmin or y_iter > ymax or y_iter < ymin or z_iter > zmax or z_iter < zmin:
-                print("Ran out of the area at i=" + str(i))
-                #Trim the array to remove unnecessary, empty entries
-                positions=positions[:time_index,:]
-                #Save the trimmed array
-                append_to_file(folder_name+mode_name+str(particle_i)+"positions.dat", positions)
-                if save_velocities:
-                    velocities=velocities[:time_index,:]
-                    append_to_file(folder_name+mode_name+str(particle_i)+"velocities.dat", velocities)
-                ended_on_region_exit = True #prevent program from saving position after leaving the loop
-                break #quit the for loop
-            else: #particle has not yet left the region
-                if i and not time_index:
-                    print("Data dump #%d out of %d" %(i//Dump_every_N_iterations, N_iterations//Dump_every_N_iterations))
-                    append_to_file(folder_name+mode_name+str(particle_i)+"positions.dat", positions[::save_every_n_iterations])
-                    positions=np.zeros_like(positions)
+        with h5py.File(folder_name+mode_name+str(particle_i)+".hdf5", 'w') as particle_file:
+
+            particle_file.attrs['pusher_function'] = str(pusher_function)
+            particle_file.attrs['field_calculation_function'] = str(field_calculation_function)
+            particle_file.attrs['N_particles'] = N_particles
+            particle_file.attrs['N_iterations'] = N_iterations
+            particle_file.attrs['save_every_n_iterations'] = save_every_n_iterations
+            particle_file.attrs['seed'] = seed
+            particle_file.attrs['N_interpolation'] = N_interpolation
+            particle_file.attrs['continue_run'] = continue_run
+            particle_file.attrs['dt'] = dt
+            particle_file.attrs['preset_r'] = preset_r
+            particle_file.attrs['preset_v'] = preset_v
+
+            positions_dataset = particle_file.create_dataset("positions", (total_data_length, 3), dtype='float')
+            velocities_dataset = particle_file.create_dataset("velocities", (total_data_length, 3), dtype='float')
+
+            positions=np.empty((Dump_every_N_iterations,3))
+            if save_velocities:velocities=np.zeros((Dump_every_N_iterations,3))
+            if preset_r is not None and preset_v is not None:
+                #if there are preset initial conditions (N_particles should be 1 for this case)
+                r=preset_r
+                v=preset_r
+            else:
+                #generate initial conditions at random
+                r=np.random.rand(3)
+                r[:2]=r[:2]*(xmax-xmin)+xmin
+                r[2] = r[2]*(zmax-zmin)+zmin
+                r/=2.
+                v=np.zeros(3)
+                v[:2]=(np.random.rand(2)*(xmax-xmin)+xmin)*velocity_scaling
+                v[2]=(np.random.rand()*(zmax-zmin)+zmin)*velocity_scaling
+
+            positions_dataset.attrs['starting_position']=r
+            velocities_dataset.attrs['starting_velocity']=v
+
+            print("Moving particle " + str(particle_i))
+            print(r)
+            print(v)
+            if (pusher_function==boris_step):
+                dummy, v = pusher_function(r,v,-dt/2., field_calculation_function)
+            ended_on_region_exit=False
+            for i in xrange(N_iterations):
+                #Enter loop
+                time_index=i%Dump_every_N_iterations
+                #Push position and velocity
+                r,v = pusher_function(r,v,dt, field_calculation_function, N_interpolation=N_interpolation)
+                #Check for particle leaving region
+                x_iter, y_iter, z_iter = r
+                if x_iter > xmax or x_iter < xmin or y_iter > ymax or y_iter < ymin or z_iter > zmax or z_iter < zmin:
+                    print("Ran out of the area at i=" + str(i))
+                    #Trim the array to remove unnecessary, empty entries
+                    positions=positions[:time_index,:]
+                    #Save the trimmed array
+                    #TODO change here
+                    append_to_file(folder_name+mode_name+str(particle_i)+"positions.dat", positions)
                     if save_velocities:
+                        velocities=velocities[:time_index,:]
+                        #TODO change here
+                        append_to_file(folder_name+mode_name+str(particle_i)+"velocities.dat", velocities)
+                    ended_on_region_exit = True #prevent program from saving position after leaving the loop
+                    break #quit the for loop
+                else: #particle has not yet left the region
+                    if i and not time_index:
+                        print("Data dump #%d out of %d" %(i//Dump_every_N_iterations, N_iterations//Dump_every_N_iterations))
+                        #TODO change here
+                        append_to_file(folder_name+mode_name+str(particle_i)+"positions.dat", positions[::save_every_n_iterations])
+                        positions=np.zeros_like(positions)
+                        #TODO change here
                         append_to_file(folder_name+mode_name+str(particle_i)+"velocities.dat", velocities[::save_every_n_iterations])
                         velocities=np.zeros_like(velocities)
-                positions[time_index,:]=r
-                if save_velocities:
-                    velocities[time_index,:]=v
-        if not ended_on_region_exit:
-            positions=positions[:time_index,:]
-            append_to_file(folder_name+mode_name+str(particle_i)+"positions.dat", positions)
-            if save_velocities:
+                    positions[time_index,:]=r
+                    if save_velocities:
+                        velocities[time_index,:]=v
+            if not ended_on_region_exit:
+                positions=positions[:time_index,:]
+                #TODO change here
+                append_to_file(folder_name+mode_name+str(particle_i)+"positions.dat", positions)
                 velocities=velocities[:time_index,:]
+                #TODO change here
                 append_to_file(folder_name+mode_name+str(particle_i)+"velocities.dat", velocities)
     print("Push finished.")
     return positions
