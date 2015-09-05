@@ -8,6 +8,7 @@ import scipy.spatial
 import sys
 import shutil
 import h5py
+import pdb
 
 #Grid parameters
 NGRID=50
@@ -210,96 +211,76 @@ def field_interpolation(r, N_interpolation=N_interpolation):
     return array
 
 def exact_ramp_field(r, N_interpolation = N_interpolation):
-    B=np.zeros(3)
+    B=np.zeros_like(r)
     B0 = MU*wire_current/5./np.pi
-    distances = np.sqrt(np.sum(r[:2]**2))
+    distances = np.sqrt(np.sum(r[:,:2]**2,axis=1))[:,np.newaxis]
     orientation=r/distances
-
-    if distances<r_wires:
-        B[0] = B0 * distances/r_wires*orientation[1]
-        B[1] = -B0 * distances/r_wires*orientation[0]
-    else:
-        B[0] = B0 * r_wires / distances*orientation[1]
-        B[1] = -B0 * r_wires / distances*orientation[0]
+    index = distances<r_wires
+    not_index=np.logical_not(index)
+    B[[index],0]=B0*distances/r_wires*orientation[[index],1]
+    B[[index],1]=-B0*distances/r_wires*orientation[[index],0]
+    B[[not_index],0]=B0*r_wires/distances*orientation[[not_index],1]
+    B[[not_index],1]=-B0*r_wires/distances*orientation[[not_index],0]
     B[np.isinf(B)] = 0
     B[np.isnan(B)] = 0
     return B
 
 def exact_single_wire_field(r, N_interpolation = N_interpolation):
-    B=np.zeros(3)
+    B=np.zeros_like(r)
     B0 = MU*wire_current/2./np.pi
-    distances = np.sqrt(np.sum(r[:2]**2))
+    distances = np.sqrt(np.sum(r[:,:2]**2, axis=1))
     orientation=r/distances
 
-    B[0] = B0 / distances*orientation[1]
-    B[1] = -B0 / distances*orientation[0]
+    B[:,0] = B0 / distances*orientation[:,1]
+    B[:,1] = -B0 / distances*orientation[:,0]
     B[np.isinf(B)] = 0
     B[np.isnan(B)] = 0
     return B
 
 def test_z_field(r, N_interpolation = N_interpolation):
-    B = np.array([0.,0.,1.])
+    B = np.zeros_like(r)
+    B[:,2]=1.
     return B
 
 ############Particle pushing algorithms
 def boris_step(r, v, dt, calculate_field, N_interpolation=N_interpolation):
-    debug = False
-    if debug:
-        print("Calculating particle at " + str(r) + " with velocity " + str(v) +
-        ", dt is %f" % dt)
     field = calculate_field(r, N_interpolation = N_interpolation)
-    if debug:
-        print ("Field is " + str(field))
     t = qmratio*field*dt/2.
-    if debug:
-        print ("t is " + str(t))
-    vprime = v + np.cross(v,t)
-    if debug:
-        print ("vprime is " +str(vprime))
+    vprime = v + np.cross(v,t, axis=1)
     s = 2*t/(1.+np.sum(t*t))
-    if debug:
-        print ("s is " + str(s))
-    dv = np.cross(vprime,s)
-    if debug:
-        print ("dv is " + str(dv))
+    dv = np.cross(vprime,s, axis=1)
     v += dv
-    if debug:
-        print ("v is " + str(v))
     dr=v*dt
     r+=dr
-    if debug:
-        print ("dr is " + str(dr))
-        print ("r is " + str(r))
-        input()
     return r,v
 
 def RK4_step(r,v,dt, calculate_field, N_interpolation=N_interpolation):
-	field1 = calculate_field(r, N_interpolation = N_interpolation)
-	k1v = qmratio*np.cross(v,field1)
-	k1r = v
+    field1 = calculate_field(r, N_interpolation = N_interpolation)
+    k1v = qmratio*np.cross(v,field1, axis=1)
+    k1r = v
 
-	r2 = r + k1r*dt/2.
-	v2 = v + k1v*dt/2.
-	field2 = calculate_field(r2)
-	k2v = qmratio*np.cross(v2,field2)
-	k2r = v2
+    r2 = r + k1r*dt/2.
+    v2 = v + k1v*dt/2.
+    field2 = calculate_field(r2)
+    k2v = qmratio*np.cross(v2,field2, axis=1)
+    k2r = v2
 
-	r3 = r + k2r*dt/2.
-	v3 = v + k2v*dt/2.
-	field3 = calculate_field(r3)
-	k3v = qmratio*np.cross(v3, field3)
-	k3r = v3
+    r3 = r + k2r*dt/2.
+    v3 = v + k2v*dt/2.
+    field3 = calculate_field(r3)
+    k3v = qmratio*np.cross(v3, field3, axis=1)
+    k3r = v3
 
-	r4 = r + k3r*dt
-	v4 = v + k3v*dt
-	field4 = calculate_field(r4)
-	k4v = qmratio*np.cross(v4, field4)
-	k4r = v4
+    r4 = r + k3r*dt
+    v4 = v + k3v*dt
+    field4 = calculate_field(r4)
+    k4v = qmratio*np.cross(v4, field4, axis=1)
+    k4r = v4
 
-	r += dt/6.*(k1r+2*(k2r+k3r)+k4r)
-	v += dt/6.*(k1v+2*(k2v+k3v)+k4v)
+    r += dt/6.*(k1r+2*(k2r+k3r)+k4r)
+    v += dt/6.*(k1v+2*(k2v+k3v)+k4v)
 
-	return r,v
+    return r,v
 
 def particle_loop(pusher_function, field_calculation_function, mode_name, N_particles,
         N_iterations, save_every_n_iterations=10, save_velocities=False, seed=1,
@@ -333,53 +314,76 @@ def particle_loop(pusher_function, field_calculation_function, mode_name, N_part
         loop_file.attrs['N_interpolation'] = N_interpolation
         loop_file.attrs['continue_run'] = continue_run
         loop_file.attrs['dt'] = dt
-        loop_file.attrs['preset_r'] = preset_r
-        loop_file.attrs['preset_v'] = preset_v
-        for particle_i in range(N_particles):
 
-            positions_dataset = loop_file.create_dataset("%d/positions"%particle_i, (total_data_length, 3), dtype='float')
-            velocities_dataset = loop_file.create_dataset("%d/velocities"%particle_i, (total_data_length, 3), dtype='float')
+        if preset_r is not None:
+            loop_file.attrs['preset_r'] = preset_r
+        else:
+            loop_file.attrs['preset_r'] = "No preset r"
+        if preset_v is not None:
+            loop_file.attrs['preset_v'] = preset_v
+        else:
+            loop_file.attrs['preset_v'] = "No preset v"
 
-            if preset_r is not None and preset_v is not None:
-                #if there are preset initial conditions (N_particles should be 1 for this case)
-                r=preset_r
-                v=preset_r
-            else:
-                #generate initial conditions at random
-                r=np.random.rand(3)
-                r[:2]=r[:2]*(xmax-xmin)+xmin
-                r[2] = r[2]*(zmax-zmin)+zmin
-                r/=2.
-                v=np.zeros(3)
-                v[:2]=(np.random.rand(2)*(xmax-xmin)+xmin)*velocity_scaling
-                v[2]=(np.random.rand()*(zmax-zmin)+zmin)*velocity_scaling
 
-            positions_dataset.attrs['starting_position']=r
-            velocities_dataset.attrs['starting_velocity']=v
+        positions_dataset = loop_file.create_dataset("positions", (N_particles,3,total_data_length), dtype='float')
+        velocities_dataset = loop_file.create_dataset("velocities", (N_particles,3,total_data_length), dtype='float')
 
-            print("Moving particle " + str(particle_i))
-            print(r)
-            print(v)
-            if (pusher_function==boris_step):
-                dummy, v = pusher_function(r,v,-dt/2., field_calculation_function)
-            ended_on_region_exit=False
-            for i in xrange(N_iterations):
-                #Enter loop
-                if not i%Dump_every_N_iterations:
-                    print("Iteration %d out of %d"%(i,N_iterations))
-                counter_to_save_data=i%save_every_n_iterations
-                #Push position and velocity
-                r,v = pusher_function(r,v,dt, field_calculation_function, N_interpolation=N_interpolation)
-                #Check for particle leaving region
-                x_iter, y_iter, z_iter = r
-                if not counter_to_save_data:
-                    data_save_index=i//save_every_n_iterations
-                    positions_dataset[data_save_index]=r
-                    velocities_dataset[data_save_index]=v
-                if x_iter > xmax or x_iter < xmin or y_iter > ymax or y_iter < ymin or z_iter > zmax or z_iter < zmin:
-                    print("Ran out of the area at i=" + str(i))
-                    ended_on_region_exit = True #prevent program from saving position after leaving the loop
-                    break #quit the for loop
+        if preset_r is not None:
+            #if there are preset initial conditions (N_particles should be 1 for this case)
+            r=preset_r
+        else:
+            #generate initial conditions at random
+            r=np.random.random((N_particles,3))
+            r[:,:2]=r[:,:2]*(xmax-xmin)+xmin
+            r[:,2] = r[:,2]*(zmax-zmin)+zmin
+            r/=2.
+        if preset_v is not None:
+            v=preset_r
+        else:
+            v=np.random.random((N_particles,3))
+            v[:,:2]=(v[:,:2]*(xmax-xmin)+xmin)*velocity_scaling
+            v[:,2]=(v[:,2]*(zmax-zmin)+zmin)*velocity_scaling
+
+        positions_dataset.attrs['starting_position']=r
+        velocities_dataset.attrs['starting_velocity']=v
+
+        print(r)
+        print(v)
+        if (pusher_function==boris_step):
+            dummy, v = pusher_function(r,v,-dt/2., field_calculation_function)
+        ended_on_region_exit=False
+        for i in xrange(N_iterations):
+            #Enter loop
+            if not i%Dump_every_N_iterations:
+                print("Iteration %d out of %d"%(i,N_iterations))
+            counter_to_save_data=i%save_every_n_iterations
+            #Push position and velocity
+            running_particles=np.isfinite(r[:,0])
+            r[running_particles],v[running_particles] = pusher_function(r[running_particles],v[running_particles],dt, field_calculation_function, N_interpolation=N_interpolation)
+            # r[running_particles],v[running_particles] = pusher_function(r[running_particles],v[running_particles],dt, field_calculation_function, N_interpolation=N_interpolation)
+            #Check for particle leaving region
+            x_iter, y_iter, z_iter = r[:,0], r[:,1], r[:,2]
+            if not counter_to_save_data:
+                data_save_index=i//save_every_n_iterations
+                positions_dataset[:,:,data_save_index]=r
+                velocities_dataset[:,:,data_save_index]=v
+            if not np.any(running_particles):
+                print("All of the particles have run out!")
+                positions_dataset[:,:,data_save_index+1:]=np.nan
+                velocities_dataset[:,:,data_save_index+1:]=np.nan
+                break
+                # use isnan for removed particles
+            ran_out_x=np.logical_or(x_iter<xmin,x_iter>xmax)
+            ran_out_y=np.logical_or(y_iter<ymin,y_iter>ymax)
+            ran_out_z=np.logical_or(z_iter<zmin,z_iter>zmax)
+            ran_out=np.logical_or(ran_out_x, np.logical_or(ran_out_y,ran_out_z))
+            # pdb.set_trace()
+            r[ran_out,:]=np.nan
+            v[ran_out,:]=np.nan
+            # if x_iter > xmax or x_iter < xmin or y_iter > ymax or y_iter < ymin or z_iter > zmax or z_iter < zmin:
+            #     print("Ran out of the area at i=" + str(i))
+            #     ended_on_region_exit = True #prevent program from saving position after leaving the loop
+            #     break #quit the for loop
 
     print("Push finished.")
 
@@ -487,12 +491,17 @@ def display_difference_quiver(grid1, grid2, display_every_n_point=1):
 def plot_xy_positions(*args):
     for mode_name, style in args:
         with h5py.File(folder_name+mode_name+".hdf5", "r") as f:
-            for particle in f:
-                x=particle['positions'][:,0]
-                y=particle['positions'][:,1]
+            particle_positions=f['positions']
+            for particle in xrange(f.attrs['N_particles']):
+                x=particle_positions[particle,0,:]
+                y=particle_positions[particle,1,:]
                 plt.plot(x,y, style, label=mode_name)
     plt.grid()
     plt.legend()
+    plt.xlim(xmin, xmax)
+    plt.ylim(ymin, ymax)
+    plt.xlabel("x [m]")
+    plt.ylabel("y [m]")
     plt.show()
 
 def plot_energies(mode_name1, mode_name2):
