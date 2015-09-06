@@ -58,6 +58,7 @@ else:
     shutil.copy2('plot.py',folder_name)
 
 def append_to_file(file, array):
+    """TO BE WRITTEN"""
     # print("Array begins with")
     # print(array[:3,:])
     # print("Array ends with")
@@ -70,6 +71,7 @@ def append_to_file(file, array):
 #########Grid functions####################
 
 def nonuniform_grid():
+    """TO BE WRITTEN"""
     x,dx=np.linspace(xmin,xmax,NGRID,retstep=True)
     y,dy=np.linspace(ymin,ymax,NGRID,retstep=True)
     z,dz=np.linspace(zmin,zmax,NZGRID,retstep=True)
@@ -84,6 +86,7 @@ def nonuniform_grid():
     return grid_positions, dx, dy, dz
 
 def uniform_grid():
+    """TO BE WRITTEN"""
     dx = dy = (ymax - ymin)/NGRID
     dz = (zmax-zmin)/NZGRID
     step_size=min([dx, dz])
@@ -103,6 +106,7 @@ def uniform_grid():
     return grid_positions, dx, dy, dz
 
 def load_grid(grid_calculation_function, mode_name=""):
+    """TO BE WRITTEN"""
     if(os.path.isfile(folder_name+mode_name+"grid_positions.dat")):
         grid_positions=np.loadtxt(folder_name+mode_name+"grid_positions.dat")
         dx, dy, dz = np.loadtxt(folder_name + mode_name + "step_sizes.dat")
@@ -117,6 +121,7 @@ def load_grid(grid_calculation_function, mode_name=""):
 
 #########Magnetic field functions#########
 def exact_ramp_field_grid(grid_positions, N_wires = 1, r_wires=0,mode_name="", N=N):
+    """TO BE WRITTEN"""
     print("Calculating field via exact linear ramp formula")
     B0 = MU*wire_current/5./np.pi
     grid_B = np.zeros_like(grid_positions)
@@ -138,6 +143,7 @@ def exact_ramp_field_grid(grid_positions, N_wires = 1, r_wires=0,mode_name="", N
     return grid_B
 
 def exact_single_wire_field_grid(grid_positions, N_wires = 1, r_wires=0,mode_name="", N=N):
+    """TO BE WRITTEN"""
     print("Calculating field via exact single wire ramp formula")
     B0 = MU*wire_current/2./np.pi
     grid_B = np.zeros_like(grid_positions)
@@ -156,6 +162,7 @@ def exact_single_wire_field_grid(grid_positions, N_wires = 1, r_wires=0,mode_nam
 
 
 def biot_savart_field_grid(grid_positions, N_wires=6, r_wires=0.08, wire_current=1e6, mode_name="", N=N):
+    """TO BE WRITTEN"""
     print("Calculating field via Biot Savart")
     grid_B=np.zeros_like(grid_positions)
     for i in range(N_wires):
@@ -187,6 +194,7 @@ def biot_savart_field_grid(grid_positions, N_wires=6, r_wires=0.08, wire_current
     return grid_B
 
 def load_field(field_generation_function, grid_positions, field_mode_name="", grid_mode_name="", N_wires=N_wires, r_wires=r_wires, N=N):
+    """TO BE WRITTEN"""
     if(os.path.isfile(folder_name+grid_mode_name+field_mode_name+"grid_B.dat")):
         grid_B=np.loadtxt(folder_name+grid_mode_name+field_mode_name+"grid_B.dat")
         print("Loaded grid fields")
@@ -199,6 +207,7 @@ def load_field(field_generation_function, grid_positions, field_mode_name="", gr
 ###########Solving fields at particle positions
 
 def field_interpolation(r, N_interpolation=N_interpolation):
+    """TO BE WRITTEN"""
     distances, indices = mytree.query(r, k=N_interpolation)
     weights =1./(distances)**8
     sum_weights=np.sum(weights)
@@ -211,6 +220,7 @@ def field_interpolation(r, N_interpolation=N_interpolation):
     return array
 
 def exact_ramp_field(r, N_interpolation = N_interpolation):
+    """TO BE WRITTEN"""
     B=np.zeros_like(r)
     B0 = MU*wire_current/5./np.pi
     distances = np.sqrt(np.sum(r[:,:2]**2,axis=1))[:,np.newaxis]
@@ -226,6 +236,7 @@ def exact_ramp_field(r, N_interpolation = N_interpolation):
     return B
 
 def exact_single_wire_field(r, N_interpolation = N_interpolation):
+    """TO BE WRITTEN"""
     B=np.zeros_like(r)
     B0 = MU*wire_current/2./np.pi
     distances = np.sqrt(np.sum(r[:,:2]**2, axis=1))
@@ -238,12 +249,14 @@ def exact_single_wire_field(r, N_interpolation = N_interpolation):
     return B
 
 def test_z_field(r, N_interpolation = N_interpolation):
+    """TO BE WRITTEN"""
     B = np.zeros_like(r)
     B[:,2]=1.
     return B
 
 ############Particle pushing algorithms
 def boris_step(r, v, dt, calculate_field, N_interpolation=N_interpolation):
+    """TO BE WRITTEN"""
     field = calculate_field(r, N_interpolation = N_interpolation)
     t = qmratio*field*dt/2.
     vprime = v + np.cross(v,t, axis=1)
@@ -255,6 +268,7 @@ def boris_step(r, v, dt, calculate_field, N_interpolation=N_interpolation):
     return r,v
 
 def RK4_step(r,v,dt, calculate_field, N_interpolation=N_interpolation):
+    """TO BE WRITTEN"""
     field1 = calculate_field(r, N_interpolation = N_interpolation)
     k1v = qmratio*np.cross(v,field1, axis=1)
     k1r = v
@@ -285,6 +299,7 @@ def RK4_step(r,v,dt, calculate_field, N_interpolation=N_interpolation):
 def particle_loop(pusher_function, field_calculation_function, mode_name, N_particles,
         N_iterations, save_every_n_iterations=10, save_velocities=False, seed=1,
         N_interpolation=N_interpolation, continue_run=False, dt=dt, preset_r=None, preset_v=None):
+    """TO BE WRITTEN"""
     print("""
 
     Running simulation of mode %s with %d particles.
@@ -390,12 +405,14 @@ def particle_loop(pusher_function, field_calculation_function, mode_name, N_part
 ##########################Diagnostics
 
 def calculate_variances(exact_trajectory, trial_trajectory):
+    """TO BE REDONE"""
     lengths = (len(exact_trajectory), len(trial_trajectory))
     min_len=min(lengths)
     return np.sum((exact_trajectory[:min_len]-trial_trajectory[:min_len])**2, axis=1)
 
 compared_trajectories_number=0
 def compare_trajectories(exact_trajectory, trial_trajectory):
+    """TO BE REDONE"""
     global compared_trajectories_number
     variances = calculate_variances(exact_trajectory, trial_trajectory)
     sum_of_variances = np.sum(variances)
@@ -409,6 +426,7 @@ def compare_trajectories(exact_trajectory, trial_trajectory):
     return sum_of_variances
 
 def test_pusher_algorithms():
+    """TO BE REDONE"""
     #Simulation parameters
     N_iterations=int(1e8)
     Dump_every_N_iterations=int(1e6)
@@ -442,6 +460,7 @@ def test_pusher_algorithms():
 #####################Visualization
 
 def display_wires(N_wires=1, r_wires=0):
+    """TO BE REDONE"""
     print("Loading wires")
     for i in range(N_wires):
         angle = 2*i*np.pi/N_wires
@@ -453,6 +472,7 @@ def display_wires(N_wires=1, r_wires=0):
         mlab.plot3d(x_wire,y_wire,z_wire, np.zeros_like(z_wire), tube_radius=None)
 
 def display_quiver(grid_mode_name="", field_mode_name="", display_every_n_point=1):
+    """TO BE REDONE"""
     print("Loading quiver")
     grid_positions=np.loadtxt(folder_name+grid_mode_name+"grid_positions.dat")
     grid_B=np.loadtxt(folder_name+grid_mode_name+field_mode_name+"grid_B.dat")
@@ -466,6 +486,7 @@ def display_quiver(grid_mode_name="", field_mode_name="", display_every_n_point=
     mlab.vectorbar(quiver, orientation='vertical')
 
 def display_difference_quiver(grid1, grid2, display_every_n_point=1):
+    """TO BE REDONE"""
     x_display=grid_positions[::display_every_n_point,0]
     y_display=grid_positions[::display_every_n_point,1]
     z_display=grid_positions[::display_every_n_point,2]
@@ -503,8 +524,41 @@ def plot_xy_positions(*args):
     plt.xlabel("x [m]")
     plt.ylabel("y [m]")
     plt.show()
+def plot_xz_positions(*args):
+    for mode_name, style in args:
+        with h5py.File(folder_name+mode_name+".hdf5", "r") as f:
+            particle_positions=f['positions']
+            for particle in xrange(f.attrs['N_particles']):
+                x=particle_positions[particle,0,:]
+                z=particle_positions[particle,2,:]
+                plt.plot(x,z, style, label=mode_name)
+    plt.grid()
+    plt.legend()
+    plt.xlim(xmin, xmax)
+    plt.ylim(zmin, zmax)
+    plt.xlabel("x [m]")
+    plt.ylabel("z [m]")
+    plt.show()
+
+def display_particles(*args):
+    """Displays particle trajectories from hdf5 files.
+    Takes in (mode_name, style) pairs such as
+    ("boris", "Blues"), ("rk4", "Reds)
+    and displays each mode using the given mayavi colormap name."""
+    for mode_name, style in args:
+        print("Displaying particles from mode " + mode_name)
+        with h5py.File(folder_name+mode_name+".hdf5", "r") as f:
+            particle_positions=f['positions']
+            for particle in xrange(f.attrs['N_particles']):
+                x=particle_positions[particle,0,:]
+                y=particle_positions[particle,1,:]
+                z=particle_positions[particle,2,:]
+                time = np.arange(len(z))
+                plot = mlab.plot3d(x, y, z, time, colormap=style, tube_radius=None)
+            mlab.colorbar(plot)
 
 def plot_energies(mode_name1, mode_name2):
+    """TO BE REDONE"""
     print("Printing energies")
     particle_i = 0
     while True:
@@ -527,30 +581,8 @@ def plot_energies(mode_name1, mode_name2):
             print("Failed to load particle " + str(particle_i))
             break
 
-def display_particles(mode_name="", colormap="Spectral", all_colorbars=False):
-    print("Displaying particles from mode " + mode_name)
-    particle_i=0
-    while True:
-        particle_file_name=folder_name+mode_name+str(particle_i)+"positions.dat"
-        if(os.path.isfile(particle_file_name)):
-            positions=np.loadtxt(particle_file_name)
-            print(positions[-3:,:])
-            x_positions=positions[:,0]
-            y_positions=positions[:,1]
-            z_positions=positions[:,2]
-            time=np.arange(len(z_positions))
-            plot=mlab.plot3d(x_positions, y_positions, z_positions, time, colormap=colormap, tube_radius=None)
-            print("Loaded particle " + str(particle_i) + " for display")
-        else:
-            print("Failed to load particle " + str(particle_i))
-            break
-        particle_i+=1
-        if all_colorbars: mlab.colorbar(plot)
-    if not all_colorbars: colorbar=mlab.colorbar(plot)
-    print("Loading particle display finished")
-    return positions
-
 def load_particle_trajectory(mode_name=""):
+    """TO BE REDONE"""
     print("Loagin particle from mode " + mode_name)
     particle_file_name=folder_name+mode_name+"0positions.dat"
     if(os.path.isfile(particle_file_name)):
