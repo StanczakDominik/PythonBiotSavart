@@ -253,6 +253,11 @@ def test_z_field(r, N_interpolation = N_interpolation):
     B = np.zeros_like(r)
     B[:,2]=1.
     return B
+def old_velocity_sampler(N_particles, velocity_scaling)
+    v=np.random.random((N_particles,3))
+    v[:,:2]=(v[:,:2]*(xmax-xmin)+xmin)*velocity_scaling
+    v[:,2]=(v[:,2]*(zmax-zmin)+zmin)*velocity_scaling
+    return v
 
 ############Particle pushing algorithms
 def boris_step(r, v, dt, calculate_field, N_interpolation=N_interpolation):
@@ -355,9 +360,7 @@ def particle_loop(pusher_function, field_calculation_function, mode_name, N_part
         if preset_v is not None:
             v=preset_r
         else:
-            v=np.random.random((N_particles,3))
-            v[:,:2]=(v[:,:2]*(xmax-xmin)+xmin)*velocity_scaling
-            v[:,2]=(v[:,2]*(zmax-zmin)+zmin)*velocity_scaling
+            v=old_velocity_sampler(N_particles, velocity_scaling)
 
         positions_dataset.attrs['starting_position']=r
         velocities_dataset.attrs['starting_velocity']=v
