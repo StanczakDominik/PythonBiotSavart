@@ -373,8 +373,17 @@ def particle_loop(pusher_function, field_calculation_function, mode_name, N_part
                 print("Iteration %d out of %d"%(i,N_iterations))
             counter_to_save_data=i%save_every_n_iterations
             #Push position and velocity
-            running_particles=np.isfinite(r[:,0])
-            r[running_particles],v[running_particles] = pusher_function(r[running_particles],v[running_particles],dt, field_calculation_function, N_interpolation=N_interpolation)
+            running_particles=np.isfinite(r[:,0])*np.isfinite(r[:,1])*np.isfinite(r[:,2])
+            if np.sum(running_particles)<2:
+            # if not np.any(running_particles):
+                print("All but one of the particles have run out!")
+                positions_dataset[:,:,data_save_index+1:]=np.nan
+                velocities_dataset[:,:,data_save_index+1:]=np.nan
+                break
+            try:
+                r[running_particles],v[running_particles] = pusher_function(r[running_particles],v[running_particles],dt, field_calculation_function, N_interpolation=N_interpolation)
+            except IndexError:
+                pdb.set_trace()
             # r[running_particles],v[running_particles] = pusher_function(r[running_particles],v[running_particles],dt, field_calculation_function, N_interpolation=N_interpolation)
             #Check for particle leaving region
             x_iter, y_iter, z_iter = r[:,0], r[:,1], r[:,2]
@@ -382,11 +391,6 @@ def particle_loop(pusher_function, field_calculation_function, mode_name, N_part
                 data_save_index=i//save_every_n_iterations
                 positions_dataset[:,:,data_save_index]=r
                 velocities_dataset[:,:,data_save_index]=v
-            if not np.any(running_particles):
-                print("All of the particles have run out!")
-                positions_dataset[:,:,data_save_index+1:]=np.nan
-                velocities_dataset[:,:,data_save_index+1:]=np.nan
-                break
                 # use isnan for removed particles
             ran_out_x=np.logical_or(x_iter<xmin,x_iter>xmax)
             ran_out_y=np.logical_or(y_iter<ymin,y_iter>ymax)
@@ -483,7 +487,7 @@ def display_quiver(grid_mode_name="", field_mode_name="", display_every_n_point=
     by_display=grid_B[::display_every_n_point,1]
     bz_display=grid_B[::display_every_n_point,2]
     quiver=mlab.quiver3d(x_display, y_display, z_display, bx_display, by_display, bz_display, opacity=0.01)
-    mlab.vectorbar(quiver, orientation='vertical')
+    # mlab.vectorbar(quiver, orientation='vertical')
 
 def display_difference_quiver(grid1, grid2, display_every_n_point=1):
     """TO BE REDONE"""
@@ -510,6 +514,11 @@ def display_difference_quiver(grid1, grid2, display_every_n_point=1):
     return scale
 
 def plot_xy_positions(*args):
+    """Displays particle trajectories in the XY plane using Matplotlib.
+    Takes in (mode_name, style) pairs such as
+    ("boris", "bo-"), ("rk4", "ro-")
+    and displays each mode using the given pyplot line style.
+    """
     for mode_name, style in args:
         with h5py.File(folder_name+mode_name+".hdf5", "r") as f:
             particle_positions=f['positions']
@@ -525,6 +534,11 @@ def plot_xy_positions(*args):
     plt.ylabel("y [m]")
     plt.show()
 def plot_xz_positions(*args):
+    """Displays particle trajectories in the XZ plane using Matplotlib.
+    Takes in (mode_name, style) pairs such as
+    ("boris", "bo-"), ("rk4", "ro-")
+    and displays each mode using the given pyplot line style.
+    """
     for mode_name, style in args:
         with h5py.File(folder_name+mode_name+".hdf5", "r") as f:
             particle_positions=f['positions']
@@ -553,33 +567,37 @@ def display_particles(*args):
                 x=particle_positions[particle,0,:]
                 y=particle_positions[particle,1,:]
                 z=particle_positions[particle,2,:]
+                finite_indices=np.isfinite(z)
+                x=x[finite_indices]
+                y=y[finite_indices]
+                z=z[finite_indices]
                 time = np.arange(len(z))
                 plot = mlab.plot3d(x, y, z, time, colormap=style, tube_radius=None)
             mlab.colorbar(plot)
 
-def plot_energies(mode_name1, mode_name2):
+def plot_energies(*args):
     """TO BE REDONE"""
-    print("Printing energies")
-    particle_i = 0
-    while True:
-        particle_file_name1=folder_name+mode_name1+str(particle_i)+"velocities.dat"
-        particle_file_name2=folder_name+mode_name2+str(particle_i)+"velocities.dat"
-        if(os.path.isfile(particle_file_name1) and os.path.isfile(particle_file_name2)):
-            energies1 = np.sum(np.loadtxt(particle_file_name1)**2, axis=1)
-            energies2 = np.sum(np.loadtxt(particle_file_name2)**2, axis=1)
-            plt.plot(energies1, label=("Particle " + str(particle_i) + " " + mode_name1))
-            plt.plot(energies2, label=("Particle " + str(particle_i) + " " + mode_name2))
-            particle_i+=1
-            plt.legend()
-            plt.grid()
-            plt.xlabel("Iterations")
-            plt.ylabel("Energy")
-            plt.savefig(folder_name+"Energies" + mode_name1 + mode_name2 + ".png")
-            plt.show()
-            plt.clf()
-        else:
-            print("Failed to load particle " + str(particle_i))
-            break
+    for mode_name, style in args:
+        print mode_name, style
+        print("Displaying particle energies from mode " + mode_name)
+        with h5py.File(folder_name+mode_name+".hdf5","r") as f:
+            particle_velocities=f['velocities']
+            time=np.arange(f.attrs['N_iterations']/f.attrs['save_every_n_iterations'])*f.attrs['dt']
+            energies = np.sum(particle_velocities[...]**2, axis=1) * deuteron_mass/2.
+            for particle in xrange(f.attrs['N_particles']):
+                particle_energy=energies[particle,:]
+                plt.plot(time,particle_energy, style, label="%s p.%d"%(mode_name, particle))
+                change_in_particle_energy=particle_energy[-1]-particle_energy[0]
+                relative_change_in_particle_energy=change_in_particle_energy/particle_energy[0]
+                print("Particle %d"%particle)
+                print("Initial energy %e"%particle_energy[0])
+                print("Energy changed by %e"%change_in_particle_energy)
+                print("Relative change in energy: %e"%relative_change_in_particle_energy)
+    plt.grid()
+    plt.legend()
+    plt.xlabel("Time [s]")
+    plt.ylabel("Energy [J]")
+    plt.show()
 
 def load_particle_trajectory(mode_name=""):
     """TO BE REDONE"""
