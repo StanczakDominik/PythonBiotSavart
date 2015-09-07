@@ -253,11 +253,43 @@ def test_z_field(r, N_interpolation = N_interpolation):
     B = np.zeros_like(r)
     B[:,2]=1.
     return B
-def old_velocity_sampler(N_particles, velocity_scaling)
+
+
+############Random sampling
+
+def old_position_sampler(N_particles):
+    """Samples a uniform distribution of positions, scaled in the XY plane
+    and in the Z direction"""
+    r=np.random.random((N_particles,3))
+    r[:,:2]=r[:,:2]*(xmax-xmin)+xmin
+    r[:,2] = r[:,2]*(zmax-zmin)+zmin
+    r/=2.
+    return r
+def old_velocity_sampler(N_particles, velocity_scaling, z_velocity=None):
+    """Samples a uniform distribution of velocities with different
+    ranges in the XY plane and in the Z direction."""
     v=np.random.random((N_particles,3))
     v[:,:2]=(v[:,:2]*(xmax-xmin)+xmin)*velocity_scaling
     v[:,2]=(v[:,2]*(zmax-zmin)+zmin)*velocity_scaling
     return v
+
+def bottom_position_sampler(N_particles):
+    """Samples a uniform distribution of particles in the XY plane and a preset
+    positions in the Z direction, near the bottom of the simulation area"""
+    r=np.random.random((N_particles,3))
+    r[:,:2]=r[:,:2]*(xmax-xmin)+xmin
+    r/=2.
+    r[:,2] = 0.001*(zmax-zmin)+zmin
+    return r
+
+def directional_velocity_sampler(N_particles, velocity_scaling, z_velocity=1e4):
+    """Samples a random velocity in XY plane and a preset, upwards velocity in
+    the Z direction. Works best with particles spawning close to zmin"""
+    v = np.random.random((N_particles,3))
+    v[:,:2]=(v[:,:2]*(xmax-xmin)+xmin)*velocity_scaling
+    v[:,2] = z_velocity
+    return v
+
 
 ############Particle pushing algorithms
 def boris_step(r, v, dt, calculate_field, N_interpolation=N_interpolation):
@@ -303,7 +335,8 @@ def RK4_step(r,v,dt, calculate_field, N_interpolation=N_interpolation):
 
 def particle_loop(pusher_function, field_calculation_function, mode_name, N_particles,
         N_iterations, save_every_n_iterations=10, save_velocities=False, seed=1,
-        N_interpolation=N_interpolation, continue_run=False, dt=dt, preset_r=None, preset_v=None):
+        N_interpolation=N_interpolation, continue_run=False, dt=dt, preset_r=None, preset_v=None,
+        velocity_sampler=old_velocity_sampler, position_sampler=old_position_sampler, preset_z_velocity=1e3):
     """TO BE WRITTEN"""
     print("""
 
@@ -334,6 +367,8 @@ def particle_loop(pusher_function, field_calculation_function, mode_name, N_part
         loop_file.attrs['N_interpolation'] = N_interpolation
         loop_file.attrs['continue_run'] = continue_run
         loop_file.attrs['dt'] = dt
+        loop_file.attrs['position_sampler'] = str(position_sampler)
+        loop_file.attrs['velocity_sampler'] = str(velocity_sampler)
 
         if preset_r is not None:
             loop_file.attrs['preset_r'] = preset_r
@@ -353,14 +388,11 @@ def particle_loop(pusher_function, field_calculation_function, mode_name, N_part
             r=preset_r
         else:
             #generate initial conditions at random
-            r=np.random.random((N_particles,3))
-            r[:,:2]=r[:,:2]*(xmax-xmin)+xmin
-            r[:,2] = r[:,2]*(zmax-zmin)+zmin
-            r/=2.
+            r=position_sampler(N_particles)
         if preset_v is not None:
             v=preset_r
         else:
-            v=old_velocity_sampler(N_particles, velocity_scaling)
+            v=velocity_sampler(N_particles, velocity_scaling)
 
         positions_dataset.attrs['starting_position']=r
         velocities_dataset.attrs['starting_velocity']=v
