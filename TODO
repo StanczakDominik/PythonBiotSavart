@@ -1,0 +1,16 @@
+IDEAS
+
+Redo functions using **kwargs
+256 chunks before saving to file
+maxwellian sampling
+velocity sampler sqrt(v_therm^2-
+Turn this whole thing into a class?
+Get back to using interpolation
+
+CHECKS
+are trajectories smooth enough?
+What setup do we need to make trajectories not run out in X, Y directions?
+
+
+NOTES
+changing velocity scaling from
