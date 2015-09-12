@@ -627,16 +627,21 @@ def plot_xz_positions(*args):
     plt.ylabel("z [m]")
     plt.show()
 
-def display_particles(*args):
+def display_particles(modes, particles=None):
     """Displays particle trajectories from hdf5 files.
     Takes in (mode_name, style) pairs such as
     ("boris", "Blues"), ("rk4", "Reds)
     and displays each mode using the given mayavi colormap name."""
-    for mode_name, style in args:
+    print(modes)
+    for mode_name, style in modes:
         print("Displaying particles from mode " + mode_name)
         with h5py.File(folder_name+mode_name+".hdf5", "r") as f:
             particle_positions=f['positions']
-            for particle in xrange(f.attrs['N_particles']):
+            if particles==None:
+                particle_set=xrange(f.attrs['N_particles'])
+            else:
+                particle_set=particles
+            for particle in particle_set:
                 x=particle_positions[particle,0,:]
                 y=particle_positions[particle,1,:]
                 z=particle_positions[particle,2,:]

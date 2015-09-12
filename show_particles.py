@@ -1,5 +1,5 @@
 from biot import *
 
 read_parameters("boris")
-display_particles(("boris", "Blues"))
+display_particles(modes=(("boris", "Blues"),))
 mlab.show()
