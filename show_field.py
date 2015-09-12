@@ -1,15 +1,15 @@
 from biot import *
 
 #Simulation parameters
-N_iterations=int(1.5e6)
+N_iterations=int(1e4)
 Dump_every_N_iterations=N_iterations/100
 N_particles=10
 N_interpolation=8
 velocity_scaling=1e4 #for random selection of initial velocity
 preset_z_velocity=1e4
 seed=1
-dt=1e-9
-save_every_n_iterations=1
+dt=1e-11
+save_every_n_iterations=1000
 
 
 # mytree = scipy.spatial.cKDTree(grid_positions)
@@ -24,15 +24,9 @@ save_every_n_iterations=1
 #     save_every_n_iterations=50)
 
 # from time import time
-
-particle_loop(pusher_function=boris_step, field_calculation_function = exact_ramp_field,
-    mode_name = "boris", N_particles = N_particles, N_iterations=int(N_iterations),seed=seed,
-    continue_run=False, dt=dt,
-    save_every_n_iterations=save_every_n_iterations,
-    position_sampler=bottom_position_sampler, velocity_sampler = directional_velocity_sampler,
-    preset_z_velocity=preset_z_velocity, velocity_scaling=velocity_scaling)
-# particle_loop(pusher_function=RK4_step, field_calculation_function = exact_ramp_field,
-#     mode_name = "RK4", N_particles = N_particles, N_iterations=int(N_iterations),seed=seed,
+#
+# particle_loop(pusher_function=boris_step, field_calculation_function = exact_ramp_field,
+#     mode_name = "boris", N_particles = N_particles, N_iterations=int(N_iterations),seed=seed,
 #     continue_run=False, dt=dt,
 #     save_every_n_iterations=save_every_n_iterations,
 #     position_sampler=bottom_position_sampler, velocity_sampler = directional_velocity_sampler,
@@ -41,15 +35,13 @@ particle_loop(pusher_function=boris_step, field_calculation_function = exact_ram
 # #     mode_name = "boris_smooth", N_particles = N_particles, N_iterations=int(N_iterations),seed=seed,
 # #     continue_run=False, dt=dt,
 # #     save_every_n_iterations=1)
-
-# test_exact_ramp_field()
 # grid_positions, dx, dy, dz=load_grid(grid_calculation_function=uniform_grid)
 # grid_B=load_field(field_generation_function=exact_ramp_field_grid, grid_positions=grid_positions)
 
-# display_quiver()
+display_quiver()
 # display_particles(("boris", "Blues"))#, ("RK4", "Reds"))
 # print("Boris runtime %f, RK4 runtime %f"%(boris_runtime, rk4_runtime))
-# mlab.show()
+mlab.show()
 #
 # plot_energies(("boris", "b-"), ("RK4", "r-"))
 

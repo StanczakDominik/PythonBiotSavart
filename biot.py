@@ -1,4 +1,4 @@
-from __future__ import division
+from __future__ import division, print_function
 import numpy as np
 import matplotlib.pyplot as plt
 from numpy import pi, sin, cos, mgrid
@@ -9,6 +9,7 @@ import sys
 import shutil
 import h5py
 import pdb
+import sys
 
 #Grid parameters
 NGRID=50
@@ -120,33 +121,35 @@ def load_grid(grid_calculation_function, mode_name=""):
     return grid_positions, dx, dy, dz
 
 #########Magnetic field functions#########
-def exact_ramp_field_grid(grid_positions, N_wires = 1, r_wires=0,mode_name="", N=N):
+def exact_ramp_field_grid(grid_positions, N_wires = 1, r_wires=r_wires,mode_name="", N=N):
     """TO BE WRITTEN"""
     print("Calculating field via exact linear ramp formula")
-    B0 = MU*wire_current/5./np.pi
-    grid_B = np.zeros_like(grid_positions)
+    B_constant_outside = MU*wire_current/2./np.pi
+    B_constant_inside = B_constant_outside/r_wires**2
+    grid_B = np.empty_like(grid_positions)
     distances = np.sqrt(np.sum(grid_positions[:,:2]**2, axis=1))
+    distances_squared=distances**2
     indices_inside = distances < r_wires
-    indices_outside=np.logical_not(indices_inside)
-    orientation=(grid_positions/np.dstack((distances, distances, distances)))[0]
-    grid_B[indices_inside,0] = B0 * distances[indices_inside]/r_wires*orientation[indices_inside,1]
-    grid_B[indices_inside,1] = -B0 * distances[indices_inside]/r_wires*orientation[indices_inside,0]
-    grid_B[indices_outside,0] = B0 * r_wires / distances[indices_outside]*orientation[indices_outside,1]
-    grid_B[indices_outside,1] = -B0 * r_wires / distances[indices_outside]*orientation[indices_outside,0]
+    indices_outside= ~indices_inside
+    orientation=grid_positions/distances[:,np.newaxis]**2
+    grid_B[indices_inside,0] = B_constant_inside * grid_positions[indices_inside,1]
+    grid_B[indices_inside,1] = -B_constant_inside * grid_positions[indices_inside,0]
+    grid_B[indices_outside,0] = B_constant_outside * orientation[indices_outside,1]
+    grid_B[indices_outside,1] = -B_constant_outside * orientation[indices_outside,0]
     grid_B[:,2] = 0.
-    low_cutoff_indices=distances<low_cutoff_distance
-    indices_cut_off=np.sum(low_cutoff_indices)
-    if(indices_cut_off>0):
-        grid_B[low_cutoff_indices, :] = 0
+    # low_cutoff_indices=distances<low_cutoff_distance
+    # indices_cut_off=np.sum(low_cutoff_indices)
+    # if(indices_cut_off>0):
+    #     grid_B[low_cutoff_indices, :] = 0
     grid_B[np.isinf(grid_B)] = 0
     grid_B[np.isnan(grid_B)] = 0
     return grid_B
 
-def exact_single_wire_field_grid(grid_positions, N_wires = 1, r_wires=0,mode_name="", N=N):
+def exact_single_wire_field_grid(grid_positions, N_wires = 1, r_wires=r_wires,mode_name="", N=N):
     """TO BE WRITTEN"""
     print("Calculating field via exact single wire ramp formula")
     B0 = MU*wire_current/2./np.pi
-    grid_B = np.zeros_like(grid_positions)
+    grid_B = np.empty_like(grid_positions)
     distances = np.sqrt(np.sum(grid_positions[:,:2]**2, axis=1))
     orientation=(grid_positions/np.dstack((distances, distances, distances)))[0]
     grid_B[:,0] = -B0 / distances*orientation[:,1]
@@ -164,7 +167,7 @@ def exact_single_wire_field_grid(grid_positions, N_wires = 1, r_wires=0,mode_nam
 def biot_savart_field_grid(grid_positions, N_wires=6, r_wires=0.08, wire_current=1e6, mode_name="", N=N):
     """TO BE WRITTEN"""
     print("Calculating field via Biot Savart")
-    grid_B=np.zeros_like(grid_positions)
+    grid_B=np.empty_like(grid_positions)
     for i in range(N_wires):
         angle = 2*i*np.pi/N_wires
         x_wire_pos=r_wires*np.cos(angle)
@@ -221,23 +224,24 @@ def field_interpolation(r, N_interpolation=N_interpolation):
 
 def exact_ramp_field(r, N_interpolation = N_interpolation):
     """TO BE WRITTEN"""
-    B=np.zeros_like(r)
-    B0 = MU*wire_current/5./np.pi
-    distances = np.sqrt(np.sum(r[:,:2]**2,axis=1))[:,np.newaxis]
-    orientation=r/distances
+    B=np.empty_like(r)
+    B_constant_outside = MU*wire_current/2./np.pi
+    B_constant_inside = B_constant_outside/r_wires**2
+    distances = np.sqrt(np.sum(r[:,:2]**2,axis=1))
+    orientation=r/distances[:, np.newaxis]**2
     index = distances<r_wires
     not_index=np.logical_not(index)
-    B[[index],0]=B0*distances/r_wires*orientation[[index],1]
-    B[[index],1]=-B0*distances/r_wires*orientation[[index],0]
-    B[[not_index],0]=B0*r_wires/distances*orientation[[not_index],1]
-    B[[not_index],1]=-B0*r_wires/distances*orientation[[not_index],0]
+    B[index,0]=B_constant_inside*r[index,1]
+    B[index,1]=-B_constant_inside*r[index,0]
+    B[not_index,0]=B_constant_outside*orientation[not_index,1]
+    B[not_index,1]=-B_constant_outside*orientation[not_index,0]
     B[np.isinf(B)] = 0
     B[np.isnan(B)] = 0
     return B
 
 def exact_single_wire_field(r, N_interpolation = N_interpolation):
     """TO BE WRITTEN"""
-    B=np.zeros_like(r)
+    B=np.empty_like(r)
     B0 = MU*wire_current/2./np.pi
     distances = np.sqrt(np.sum(r[:,:2]**2, axis=1))
     orientation=r/distances
@@ -247,6 +251,17 @@ def exact_single_wire_field(r, N_interpolation = N_interpolation):
     B[np.isinf(B)] = 0
     B[np.isnan(B)] = 0
     return B
+
+def test_exact_ramp_field():
+    N=100000
+    radial_distances = np.linspace(xmax/100000., xmax, N)
+    r=np.empty((N, 3))
+    r[:,0] = radial_distances
+    r[:,1:]=0.
+    B = exact_ramp_field(r)
+    B_magnitude=np.sqrt(np.sum(B**2, axis=1))
+    plt.plot(radial_distances, B_magnitude, "ko-.")
+    plt.show()
 
 def test_z_field(r, N_interpolation = N_interpolation):
     """TO BE WRITTEN"""
@@ -265,7 +280,7 @@ def old_position_sampler(N_particles):
     r[:,2] = r[:,2]*(zmax-zmin)+zmin
     r/=2.
     return r
-def old_velocity_sampler(N_particles, velocity_scaling, z_velocity=None):
+def old_velocity_sampler(N_particles, velocity_scaling, z_velocity=None, v_thermal=None):
     """Samples a uniform distribution of velocities with different
     ranges in the XY plane and in the Z direction."""
     v=np.random.random((N_particles,3))
@@ -279,16 +294,29 @@ def bottom_position_sampler(N_particles):
     r=np.random.random((N_particles,3))
     r[:,:2]=r[:,:2]*(xmax-xmin)+xmin
     r/=2.
-    r[:,2] = 0.001*(zmax-zmin)+zmin
+    r[:,2] = 0.1*(zmax-zmin)+zmin
     return r
 
-def directional_velocity_sampler(N_particles, velocity_scaling, z_velocity=1e4):
+def directional_velocity_sampler(N_particles, velocity_scaling, z_velocity=1e4, v_thermal=None):
     """Samples a random velocity in XY plane and a preset, upwards velocity in
     the Z direction. Works best with particles spawning close to zmin"""
     v = np.random.random((N_particles,3))
-    v[:,:2]=(v[:,:2]*(xmax-xmin)+xmin)*velocity_scaling
+    v[:,:2]=(v[:,:2]*(xmax-xmin)+xmin)*velocity_scaling/(xmax-xmin)
     v[:,2] = z_velocity
     return v
+def directional_preset_magnitude_velocity_sampler(**kwargs):
+    """Takes N_particles, v_thermal, z_velocity.
+    Samples only a random direction"""
+    v = np.empty((N_particles, 3))
+    v[:,2] = z_velocity
+    xy_velocity_magnitude=np.sqrt(v_thermal**2-z_velocity**2)
+    random_angles=2*np.pi()*np.random.random(N_particles)
+    v[:,0]=np.cos(random_angles)
+    v[:,1]=np.sin(random_angles)
+    v[:,:2]*=xy_velocity_magnitude
+    return v
+def maxwellian_velocity_sampler():
+    pass
 
 
 ############Particle pushing algorithms
@@ -336,7 +364,8 @@ def RK4_step(r,v,dt, calculate_field, N_interpolation=N_interpolation):
 def particle_loop(pusher_function, field_calculation_function, mode_name, N_particles,
         N_iterations, save_every_n_iterations=10, save_velocities=False, seed=1,
         N_interpolation=N_interpolation, continue_run=False, dt=dt, preset_r=None, preset_v=None,
-        velocity_sampler=old_velocity_sampler, position_sampler=old_position_sampler, preset_z_velocity=1e3):
+        velocity_sampler=old_velocity_sampler, position_sampler=old_position_sampler, preset_z_velocity=1e3, v_thermal=1.5e3,
+        velocity_scaling=1e3):
     """TO BE WRITTEN"""
     print("""
 
@@ -344,11 +373,17 @@ def particle_loop(pusher_function, field_calculation_function, mode_name, N_part
     Pusher algorithm is %s.
     Field is calculated using %s.
     %d iterations with timestep %e, %d particles.
-    Saves data every %d iterations. Random seed is %d.""" %(mode_name, N_particles,
+    Saves data every %d iterations. Random seed is %d.
+    preset_r is %s, preset_v is %s
+    velocity sampler is %s, position sampler is %s
+    preset_z_velocity is %s""" %(mode_name, N_particles,
      pusher_function.__name__,
      field_calculation_function.__name__,
      N_iterations, dt, N_particles,
-     save_every_n_iterations, seed))
+     save_every_n_iterations, seed,
+     preset_r, preset_v,
+     velocity_sampler.__name__, position_sampler.__name__,
+     preset_z_velocity))
     if continue_run: print("    This is a continued run.")
     if save_velocities: print("    Velocities are saved.")
     print("\n")
@@ -369,6 +404,7 @@ def particle_loop(pusher_function, field_calculation_function, mode_name, N_part
         loop_file.attrs['dt'] = dt
         loop_file.attrs['position_sampler'] = str(position_sampler)
         loop_file.attrs['velocity_sampler'] = str(velocity_sampler)
+        #TODO LEFT WORK HERE
 
         if preset_r is not None:
             loop_file.attrs['preset_r'] = preset_r
@@ -392,7 +428,7 @@ def particle_loop(pusher_function, field_calculation_function, mode_name, N_part
         if preset_v is not None:
             v=preset_r
         else:
-            v=velocity_sampler(N_particles, velocity_scaling)
+            v=velocity_sampler(N_particles, velocity_scaling, preset_z_velocity, v_thermal)
 
         positions_dataset.attrs['starting_position']=r
         velocities_dataset.attrs['starting_velocity']=v
@@ -405,13 +441,15 @@ def particle_loop(pusher_function, field_calculation_function, mode_name, N_part
         for i in xrange(N_iterations):
             #Enter loop
             if not i%Dump_every_N_iterations:
-                print("Iteration %d out of %d"%(i,N_iterations))
+                sys.stdout.write('\r')
+                sys.stdout.write("%.1f%% done, iteration %d out of %d"%(i/N_iterations*100., i,N_iterations))
+                sys.stdout.flush()
             counter_to_save_data=i%save_every_n_iterations
             #Push position and velocity
             running_particles=np.isfinite(r[:,0])*np.isfinite(r[:,1])*np.isfinite(r[:,2])
-            if np.sum(running_particles)<2:
+            if np.sum(running_particles)<1:
             # if not np.any(running_particles):
-                print("All but one of the particles have run out!")
+                print("All of the particles have run out!")
                 positions_dataset[:,:,data_save_index+1:]=np.nan
                 velocities_dataset[:,:,data_save_index+1:]=np.nan
                 break
@@ -608,12 +646,60 @@ def display_particles(*args):
                 z=z[finite_indices]
                 time = np.arange(len(z))
                 plot = mlab.plot3d(x, y, z, time, colormap=style, tube_radius=None)
-            mlab.colorbar(plot)
+                mlab.colorbar(plot)
+    print("Finished displaying particles")
+
+def display_particles_velocity_magnitude(*args):
+    """Displays particle trajectories from hdf5 files.
+    Takes in (mode_name, style) pairs such as
+    ("boris", "Blues"), ("rk4", "Reds)
+    and displays each mode using the given mayavi colormap name."""
+    for mode_name, style in args:
+        print("Displaying particles from mode " + mode_name + " as velocity quivers")
+        with h5py.File(folder_name+mode_name+".hdf5", "r") as f:
+            particle_positions=f['positions']
+            particle_velocities=f['velocities']
+            for particle in xrange(f.attrs['N_particles']):
+                x=particle_positions[particle,0,:]
+                y=particle_positions[particle,1,:]
+                z=particle_positions[particle,2,:]
+                finite_indices=np.isfinite(z)
+                x=x[finite_indices]
+                y=y[finite_indices]
+                z=z[finite_indices]
+                v_magnitude = np.sqrt(np.sum(particle_velocities[particle,:,:]**2, axis=0))
+                v_magnitude=v_magnitude[finite_indices,...]
+                plot = mlab.plot3d(x, y, z, v_magnitude, colormap=style, tube_radius=None)
+                mlab.colorbar(plot, label_fmt='%.6f')
+    print("Finished displaying particles")
+
+def display_particles_radial_distance(*args):
+    """Displays particle trajectories from hdf5 files.
+    Takes in (mode_name, style) pairs such as
+    ("boris", "Blues"), ("rk4", "Reds)
+    and displays each mode using the given mayavi colormap name."""
+    for mode_name, style in args:
+        print("Displaying particles from mode " + mode_name + " as velocity quivers")
+        with h5py.File(folder_name+mode_name+".hdf5", "r") as f:
+            particle_positions=f['positions']
+            particle_velocities=f['velocities']
+            for particle in xrange(f.attrs['N_particles']):
+                x=particle_positions[particle,0,:]
+                y=particle_positions[particle,1,:]
+                z=particle_positions[particle,2,:]
+                finite_indices=np.isfinite(z)
+                x=x[finite_indices]
+                y=y[finite_indices]
+                z=z[finite_indices]
+                radial_distance = np.sqrt(x**2+y**2)
+                plot = mlab.plot3d(x, y, z, radial_distance, colormap=style, tube_radius=None)
+                mlab.colorbar(plot, label_fmt='%.6f')
+    print("Finished displaying particles")
 
 def plot_energies(*args):
     """TO BE REDONE"""
     for mode_name, style in args:
-        print mode_name, style
+        print(mode_name, style)
         print("Displaying particle energies from mode " + mode_name)
         with h5py.File(folder_name+mode_name+".hdf5","r") as f:
             particle_velocities=f['velocities']
@@ -633,7 +719,13 @@ def plot_energies(*args):
     plt.xlabel("Time [s]")
     plt.ylabel("Energy [J]")
     plt.show()
-
+def read_parameters(*args):
+    """TO BE REDONE"""
+    for mode_name in args:
+        print("MODE : %s"%mode_name)
+        with h5py.File(folder_name+mode_name+".hdf5","r") as f:
+            for key, value in f.attrs.items():
+                print("%s : %s" %(str(key), str(value)))
 def load_particle_trajectory(mode_name=""):
     """TO BE REDONE"""
     print("Loagin particle from mode " + mode_name)
